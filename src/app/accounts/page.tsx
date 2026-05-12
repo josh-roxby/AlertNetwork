@@ -1,68 +1,58 @@
 import { PageHeader } from "@/components/page-header";
-import { HealthScore } from "@/components/health-score";
-import { placeholderAccounts } from "@/lib/placeholder-data";
-import { compactNumber, percent } from "@/lib/format";
+import { HealthScore, TrendArrow } from "@/components/health-score";
+import { TierBadge } from "@/components/tier-badge";
+import { CategoryTag, Tag } from "@/components/category-tag";
+import { Button } from "@/components/button";
+import { HealthScoreBreakdown } from "@/components/health-score-breakdown";
+import { placeholderAccounts, CATEGORIES } from "@/lib/placeholder-data";
+import { compactNumber, percent, relativeDate } from "@/lib/format";
 
 export default function AccountsPage() {
-  const allTags = Array.from(
-    new Set(placeholderAccounts.flatMap((a) => a.tags)),
-  ).sort();
-
   return (
     <>
       <PageHeader
+        eyebrow="Project · Spring Music Sponsorships"
         title="Accounts"
         description="Every monitored account, browseable and filterable."
-        actions={
-          <button className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90">
-            Add account
-          </button>
-        }
+        actions={<Button>Add account</Button>}
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <input
-          type="search"
-          placeholder="Search handles…"
-          className="w-64 rounded-md border border-border bg-surface px-3 py-1.5 text-sm placeholder:text-muted-2 focus:outline-none focus:ring-1 focus:ring-accent"
-          disabled
-        />
-        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-2">
-          Tags
-        </span>
-        {allTags.map((tag) => (
-          <span
-            key={tag}
-            className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs text-muted"
-          >
-            {tag}
-          </span>
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <span className="t-micro mr-1 text-ink-3">Categories</span>
+        {CATEGORIES.map((c) => (
+          <CategoryTag key={c.id} category={c.id} />
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {placeholderAccounts.map((a) => (
           <article
             key={a.id}
-            className="rounded-lg border border-border bg-surface p-4"
+            className="rounded-md border border-line bg-surface p-6 transition-colors duration-[120ms] hover:border-line-2"
           >
-            <header className="flex items-start justify-between">
-              <div>
-                <div className="text-base font-semibold">{a.handle}</div>
-                <div className="text-xs text-muted">
-                  {a.platform} · {a.tier}
-                </div>
-              </div>
+            <div className="t-micro text-ink-3">
+              TIKTOK · <span className="text-ink-2">{a.handle}</span>
+            </div>
+            <h3 className="t-h1 mt-1 text-ink">{a.displayName}</h3>
+
+            <div className="mt-5 flex items-end justify-between">
+              <HealthScore score={a.healthScore} size="lg" showBand />
               <div className="text-right">
-                <div className="font-mono text-[10px] uppercase tracking-wider text-muted-2">
-                  Health
-                </div>
-                <div className="text-2xl">
-                  <HealthScore score={a.healthScore} />
-                </div>
+                <TrendArrow delta={a.trendDelta} />
               </div>
-            </header>
-            <dl className="mt-4 grid grid-cols-3 gap-2 text-xs">
+            </div>
+
+            <div className="mt-5">
+              <HealthScoreBreakdown
+                medianViews={a.medianViews}
+                engagementRatio={a.engagementRatio}
+                postsPerCycle={a.postsPerCycle}
+                followers={a.followers}
+                trendDelta={a.trendDelta}
+              />
+            </div>
+
+            <dl className="mt-5 grid grid-cols-3 gap-2 border-t border-line pt-4">
               <Field label="Followers" value={compactNumber(a.followers)} />
               <Field
                 label="Median views"
@@ -70,15 +60,23 @@ export default function AccountsPage() {
               />
               <Field label="Engagement" value={percent(a.engagementRatio)} />
             </dl>
-            <div className="mt-4 flex flex-wrap gap-1">
-              {a.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[11px] text-muted"
-                >
-                  {tag}
-                </span>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <CategoryTag category={a.category} />
+              {a.tags.map((t) => (
+                <Tag key={t} label={t} />
               ))}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between">
+              <TierBadge tier={a.tier} />
+              <span
+                data-numeric
+                className="text-ink-3"
+                style={{ fontSize: 11 }}
+              >
+                Logged {relativeDate(a.lastLoggedAt)}
+              </span>
             </div>
           </article>
         ))}
@@ -90,10 +88,8 @@ export default function AccountsPage() {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="font-mono text-[10px] uppercase tracking-wider text-muted-2">
-        {label}
-      </dt>
-      <dd data-numeric className="mt-0.5 text-sm">
+      <dt className="t-micro text-ink-3">{label}</dt>
+      <dd data-numeric className="mt-0.5 t-body text-ink">
         {value}
       </dd>
     </div>
