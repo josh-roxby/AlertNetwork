@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/button";
 import { placeholderProjects } from "@/lib/placeholder-data";
 import { relativeDate } from "@/lib/format";
 
@@ -6,30 +7,23 @@ export default function ProjectsPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Workspace"
         title="Projects"
-        description="Workspaces. Every account, tag, and report lives inside a project."
-        actions={
-          <button className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90">
-            New project
-          </button>
-        }
+        description="Workspaces. Every account, tag, and report lives inside a project. Switch active project from the top bar."
+        actions={<Button>New project</Button>}
       />
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {placeholderProjects.map((p) => (
           <article
             key={p.id}
-            className="rounded-lg border border-border bg-surface p-4 hover:bg-surface-2"
+            className="rounded-md border border-line bg-surface p-5 transition-colors duration-[120ms] hover:border-line-2"
           >
-            <h3 className="text-base font-semibold">{p.name}</h3>
-            <p className="mt-1 text-sm text-muted">{p.description}</p>
-            <div className="mt-4 flex items-center justify-between text-xs">
-              <span data-numeric className="text-muted">
-                {p.accountCount} accounts
-              </span>
-              <span className="text-muted-2">
-                Updated {relativeDate(p.updatedAt)}
-              </span>
+            <h3 className="t-h1 text-ink">{p.name}</h3>
+            <p className="mt-2 t-body text-ink-2">{p.description}</p>
+            <div className="mt-5 flex items-center justify-between t-small text-ink-3">
+              <span data-numeric>{p.accountCount} accounts</span>
+              <span>Updated {relativeDate(p.updatedAt)}</span>
             </div>
           </article>
         ))}
