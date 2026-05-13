@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { DM_Sans, JetBrains_Mono, Unbounded } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/app-shell";
@@ -26,6 +26,14 @@ export const metadata: Metadata = {
   title: "Alert Network",
   description:
     "Social account monitoring and observability for sponsorship teams.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+  themeColor: "#0a0a0a",
 };
 
 export default function RootLayout({

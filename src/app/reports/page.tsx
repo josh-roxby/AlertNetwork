@@ -14,7 +14,8 @@ export default function ReportsPage() {
       />
 
       <div className="overflow-hidden rounded-md border border-line bg-surface">
-        <table className="w-full">
+       <div className="scroll-x overflow-x-auto">
+        <table className="w-full min-w-[680px]">
           <thead className="bg-surface-3">
             <tr className="t-micro text-left text-ink-3">
               <th scope="col" className="px-4 py-3">
@@ -60,6 +61,7 @@ export default function ReportsPage() {
             ))}
           </tbody>
         </table>
+       </div>
       </div>
     </>
   );

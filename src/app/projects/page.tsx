@@ -13,11 +13,11 @@ export default function ProjectsPage() {
         actions={<Button>New project</Button>}
       />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
         {placeholderProjects.map((p) => (
           <article
             key={p.id}
-            className="rounded-md border border-line bg-surface p-5 transition-colors duration-[120ms] hover:border-line-2"
+            className="rounded-md border border-line bg-surface p-4 transition-colors duration-[120ms] hover:border-line-2 sm:p-5"
           >
             <h3 className="t-h1 text-ink">{p.name}</h3>
             <p className="mt-2 t-body text-ink-2">{p.description}</p>
