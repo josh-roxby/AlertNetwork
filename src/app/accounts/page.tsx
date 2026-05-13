@@ -2,7 +2,7 @@ import { PageHeader } from "@/components/page-header";
 import { HealthScore, TrendArrow } from "@/components/health-score";
 import { TierBadge } from "@/components/tier-badge";
 import { CategoryTag, Tag } from "@/components/category-tag";
-import { Button } from "@/components/button";
+import { AddAccountAction } from "@/components/create-actions";
 import { HealthScoreBreakdown } from "@/components/health-score-breakdown";
 import { placeholderAccounts, CATEGORIES } from "@/lib/placeholder-data";
 import { compactNumber, percent, relativeDate } from "@/lib/format";
@@ -14,7 +14,7 @@ export default function AccountsPage() {
         eyebrow="Project · Spring Music Sponsorships"
         title="Accounts"
         description="Every monitored account, browseable and filterable."
-        actions={<Button>Add account</Button>}
+        actions={<AddAccountAction />}
       />
 
       <div className="mb-5 flex items-center gap-2">

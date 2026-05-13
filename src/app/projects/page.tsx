@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/button";
+import { NewProjectAction } from "@/components/create-actions";
 import { placeholderProjects } from "@/lib/placeholder-data";
 import { relativeDate } from "@/lib/format";
 
@@ -10,7 +10,7 @@ export default function ProjectsPage() {
         eyebrow="Workspace"
         title="Projects"
         description="Workspaces. Every account, tag, and report lives inside a project. Switch active project from the top bar."
-        actions={<Button>New project</Button>}
+        actions={<NewProjectAction />}
       />
 
       <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
