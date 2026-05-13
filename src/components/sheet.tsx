@@ -34,9 +34,9 @@ export function Sheet({
         type="button"
         aria-label="Close"
         onClick={onClose}
-        className="drawer-backdrop fixed inset-0 z-[var(--z-backdrop)] bg-[var(--backdrop)]"
+        className="drawer-backdrop absolute inset-0 bg-[var(--backdrop)]"
       />
-      <div className="fixed inset-x-0 bottom-0 z-[var(--z-sheet)] sm:inset-0 sm:flex sm:items-end sm:justify-center sm:p-4">
+      <div className="absolute inset-x-0 bottom-0 z-10 sm:inset-0 sm:flex sm:items-end sm:justify-center sm:p-4">
         <div
           className="sheet-panel relative flex max-h-[92dvh] w-full flex-col rounded-t-lg border-t border-line bg-bg shadow-[var(--sh-lg)] sm:max-w-md sm:rounded-lg sm:border"
         >
