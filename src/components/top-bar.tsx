@@ -1,23 +1,14 @@
-import { PLACEHOLDER_MODE, placeholderProjects } from "@/lib/placeholder-data";
+import { PLACEHOLDER_MODE } from "@/lib/placeholder-data";
 import { MobileNav } from "@/components/mobile-nav";
+import { ProjectSwitcher } from "@/components/project-switcher";
+import { UserMenu } from "@/components/user-menu";
 
 export function TopBar() {
-  const currentProject = placeholderProjects[0];
-
   return (
-    <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b border-line bg-bg/85 px-4 backdrop-blur sm:gap-4 sm:px-6">
+    <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-line bg-bg/85 px-4 backdrop-blur sm:gap-4 sm:px-6">
       <MobileNav />
 
-      <button
-        type="button"
-        className="flex min-w-0 items-center gap-2 rounded-sm border border-line-2 bg-surface-2 px-3 py-1.5 text-left text-[13px] text-ink hover:bg-surface-3"
-      >
-        <span className="t-micro hidden text-ink-3 sm:inline">Project</span>
-        <span className="truncate font-medium">{currentProject?.name}</span>
-        <span aria-hidden className="text-ink-3">
-          ▾
-        </span>
-      </button>
+      <ProjectSwitcher />
 
       <div className="relative mx-auto hidden w-full max-w-[480px] md:block">
         <span
@@ -46,13 +37,7 @@ export function TopBar() {
         className="ml-auto inline-flex h-10 w-10 items-center justify-center rounded-full text-ink-2 hover:bg-surface-2 hover:text-ink md:hidden"
       >
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
-          <circle
-            cx="8"
-            cy="8"
-            r="5"
-            stroke="currentColor"
-            strokeWidth="1.6"
-          />
+          <circle cx="8" cy="8" r="5" stroke="currentColor" strokeWidth="1.6" />
           <path
             d="M12 12l3 3"
             stroke="currentColor"
@@ -68,11 +53,7 @@ export function TopBar() {
             Placeholder data
           </span>
         )}
-        <button
-          type="button"
-          aria-label="User menu"
-          className="h-8 w-8 rounded-full bg-surface-2 ring-1 ring-line-2 hover:bg-surface-3"
-        />
+        <UserMenu />
       </div>
     </header>
   );
