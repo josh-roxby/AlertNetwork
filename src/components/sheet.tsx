@@ -1,6 +1,7 @@
 "use client";
 
-import { Backdrop, useEscape, useScrollLock } from "@/components/overlay";
+import { useEscape, useScrollLock } from "@/components/overlay";
+import { IconClose } from "@/components/icons";
 
 export function Sheet({
   open,
@@ -23,44 +24,53 @@ export function Sheet({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50">
-      <Backdrop onClick={onClose} />
-      <div className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-6">
+    <div
+      className="fixed inset-0 z-[var(--z-sheet)]"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className="drawer-backdrop fixed inset-0 z-[var(--z-backdrop)] bg-[var(--backdrop)]"
+      />
+      <div className="fixed inset-x-0 bottom-0 z-[var(--z-sheet)] sm:inset-0 sm:flex sm:items-end sm:justify-center sm:p-4">
         <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={title}
-          className="drawer-panel relative w-full rounded-t-lg border-t border-line bg-surface shadow-[var(--sh-lg)] sm:max-w-md sm:rounded-lg sm:border"
-          style={{ animationName: "drawer-up" }}
+          className="sheet-panel relative flex max-h-[92dvh] w-full flex-col rounded-t-lg border-t border-line bg-bg shadow-[var(--sh-lg)] sm:max-w-md sm:rounded-lg sm:border"
         >
-          <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
-            <div className="min-w-0">
-              <h2 className="t-h1 truncate text-ink">{title}</h2>
-              {description && (
-                <p className="mt-1 t-small text-ink-3">{description}</p>
-              )}
+          <div className="sticky top-0 z-10 shrink-0 rounded-t-lg border-b border-line bg-bg">
+            <div className="flex justify-center pt-2">
+              <span
+                aria-hidden
+                className="block h-1 w-9 rounded-full bg-line-3"
+              />
             </div>
-            <button
-              type="button"
-              aria-label="Close"
-              onClick={onClose}
-              className="-mr-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-sm text-ink-3 hover:bg-surface-2 hover:text-ink"
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-                <path
-                  d="M3 3l10 10M13 3L3 13"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
+            <div className="flex h-[48px] items-center justify-between gap-3 px-4">
+              <div className="min-w-0">
+                <h2 className="t-h1 truncate text-ink">{title}</h2>
+                {description && (
+                  <p className="mt-0.5 t-small truncate text-ink-3">
+                    {description}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={onClose}
+                className="tap-btn -mr-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-sm text-ink-2 hover:bg-surface-2 hover:text-ink"
+              >
+                <IconClose />
+              </button>
+            </div>
           </div>
-          <div className="max-h-[70vh] overflow-y-auto px-5 py-5">
-            {children}
-          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 py-4">{children}</div>
+
           {footer && (
-            <div className="flex items-center justify-end gap-2 border-t border-line bg-surface-2 px-5 py-3">
+            <div className="sticky bottom-0 z-10 grid shrink-0 grid-cols-2 gap-3 border-t border-line bg-bg px-4 py-3">
               {footer}
             </div>
           )}
