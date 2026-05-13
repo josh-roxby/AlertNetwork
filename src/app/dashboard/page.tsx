@@ -64,106 +64,139 @@ export default function DashboardPage() {
       </div>
 
       <section className="overflow-hidden rounded-md border border-line bg-surface">
-        <div className="scroll-x overflow-x-auto">
-          <table className="w-full min-w-[720px]">
-            <thead className="bg-surface-3">
-              <tr className="t-micro text-left text-ink-3">
-                <th scope="col" className="px-4 py-3">
-                  Account
-                </th>
-                <th scope="col" className="px-4 py-3 text-right">
-                  Median views
-                </th>
-                <th scope="col" className="px-4 py-3 text-right">
-                  Engagement
-                </th>
-                <th scope="col" className="px-4 py-3 text-right">
-                  Health
-                </th>
-                <th scope="col" className="px-4 py-3">
-                  Tags
-                </th>
-                <th scope="col" className="px-4 py-3 text-center">
-                  Tier
-                </th>
-                <th scope="col" className="px-4 py-3 text-right">
-                  Last logged
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...accounts]
-                .sort((a, b) => b.healthScore - a.healthScore)
-                .map((a) => {
-                  const band = healthBand(a.healthScore);
-                  return (
-                    <tr
-                      key={a.id}
-                      className="border-t border-line transition-colors duration-[120ms] hover:bg-surface-2"
-                      style={{ height: 56 }}
-                    >
-                      <td className="px-4">
-                        <div className="flex items-center gap-3">
-                          <span
-                            aria-hidden
-                            className="h-8 w-8 rounded-full bg-surface-3 ring-1 ring-line"
-                          />
-                          <div>
-                            <div className="t-body font-medium text-ink">
-                              {a.handle}
-                            </div>
-                            <div className="t-small text-ink-3">
-                              {a.displayName}
-                            </div>
+        <table className="w-full table-fixed sm:table-auto">
+          <thead className="bg-surface-3">
+            <tr className="t-micro text-left text-ink-3">
+              <th scope="col" className="px-3 py-3 sm:px-4">
+                Account
+              </th>
+              <th
+                scope="col"
+                className="hidden px-3 py-3 text-right sm:table-cell sm:px-4"
+              >
+                Views
+              </th>
+              <th
+                scope="col"
+                className="hidden px-4 py-3 text-right md:table-cell"
+              >
+                Engagement
+              </th>
+              <th scope="col" className="px-3 py-3 text-right sm:px-4">
+                Health
+              </th>
+              <th
+                scope="col"
+                className="hidden px-4 py-3 xl:table-cell"
+              >
+                Tags
+              </th>
+              <th
+                scope="col"
+                className="hidden px-3 py-3 text-center sm:table-cell sm:px-4"
+              >
+                Tier
+              </th>
+              <th
+                scope="col"
+                className="hidden px-4 py-3 text-right lg:table-cell"
+              >
+                Logged
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...accounts]
+              .sort((a, b) => b.healthScore - a.healthScore)
+              .map((a) => {
+                const band = healthBand(a.healthScore);
+                return (
+                  <tr
+                    key={a.id}
+                    className="border-t border-line transition-colors duration-[120ms] hover:bg-surface-2"
+                  >
+                    <td className="px-3 py-3 sm:px-4">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <span
+                          aria-hidden
+                          className="hidden h-8 w-8 shrink-0 rounded-full bg-surface-3 ring-1 ring-line sm:inline-block"
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate t-body font-medium text-ink">
+                            {a.handle}
                           </div>
-                        </div>
-                      </td>
-                      <td data-numeric className="px-4 text-right text-ink">
-                        {compactNumber(a.medianViews)}
-                      </td>
-                      <td data-numeric className="px-4 text-right text-ink">
-                        {percent(a.engagementRatio)}
-                      </td>
-                      <td className="px-4 text-right">
-                        <div className="flex flex-col items-end">
-                          <div className="flex items-baseline gap-2">
-                            <HealthScore score={a.healthScore} size="sm" />
-                            <TrendArrow delta={a.trendDelta} />
-                          </div>
-                          <span className="t-micro mt-0.5 text-ink-3">
-                            {BAND_LABEL[band]}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4">
-                        <div className="flex flex-wrap items-center gap-1">
-                          <CategoryTag category={a.category} />
-                          {a.tags.slice(0, 1).map((t) => (
-                            <Tag key={t} label={t} />
-                          ))}
-                          {a.tags.length > 1 && (
-                            <span className="t-small text-ink-3">
-                              +{a.tags.length - 1}
+                          <div className="mt-0.5 flex items-center gap-2 sm:hidden">
+                            <span
+                              data-numeric
+                              className="t-small text-ink-2"
+                            >
+                              {compactNumber(a.medianViews)} views
                             </span>
-                          )}
+                            <span className="t-small text-ink-4">·</span>
+                            <span
+                              data-numeric
+                              className="t-small text-ink-2"
+                            >
+                              {percent(a.engagementRatio)}
+                            </span>
+                          </div>
+                          <div className="hidden t-small text-ink-3 sm:block">
+                            {a.displayName}
+                          </div>
                         </div>
-                      </td>
-                      <td className="px-4 text-center">
-                        <TierBadge tier={a.tier} />
-                      </td>
-                      <td
-                        data-numeric
-                        className="px-4 text-right text-ink-3"
-                        style={{ fontSize: 11 }}
-                      >
-                        {relativeDate(a.lastLoggedAt)}
-                      </td>
-                    </tr>
-                  );
-                })}
-            </tbody>
-          </table>
-        </div>
+                      </div>
+                    </td>
+                    <td
+                      data-numeric
+                      className="hidden px-3 py-3 text-right text-ink sm:table-cell sm:px-4"
+                    >
+                      {compactNumber(a.medianViews)}
+                    </td>
+                    <td
+                      data-numeric
+                      className="hidden px-4 py-3 text-right text-ink md:table-cell"
+                    >
+                      {percent(a.engagementRatio)}
+                    </td>
+                    <td className="px-3 py-3 text-right sm:px-4">
+                      <div className="flex flex-col items-end">
+                        <div className="flex items-baseline gap-1.5 sm:gap-2">
+                          <HealthScore score={a.healthScore} size="sm" />
+                          <TrendArrow delta={a.trendDelta} />
+                        </div>
+                        <span className="t-micro mt-0.5 text-ink-3">
+                          {BAND_LABEL[band]}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="hidden px-4 py-3 xl:table-cell">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <CategoryTag category={a.category} />
+                        {a.tags.slice(0, 1).map((t) => (
+                          <Tag key={t} label={t} />
+                        ))}
+                        {a.tags.length > 1 && (
+                          <span className="t-small text-ink-3">
+                            +{a.tags.length - 1}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="hidden px-3 py-3 text-center sm:table-cell sm:px-4">
+                      <TierBadge tier={a.tier} />
+                    </td>
+                    <td
+                      data-numeric
+                      className="hidden px-4 py-3 text-right text-ink-3 lg:table-cell"
+                      style={{ fontSize: 11 }}
+                    >
+                      {relativeDate(a.lastLoggedAt)}
+                    </td>
+                  </tr>
+                );
+              })}
+          </tbody>
+        </table>
       </section>
     </>
   );

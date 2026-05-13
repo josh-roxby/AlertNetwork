@@ -3,12 +3,29 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEscape, useScrollLock } from "@/components/overlay";
 
-const NAV: { label: string; href: string }[] = [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Accounts", href: "/accounts" },
-  { label: "Reports", href: "/reports" },
-  { label: "Settings", href: "/settings" },
+const NAV: { label: string; href: string; description: string }[] = [
+  {
+    label: "Dashboard",
+    href: "/dashboard",
+    description: "Live snapshot of monitored accounts",
+  },
+  {
+    label: "Accounts",
+    href: "/accounts",
+    description: "Browse, filter and tag accounts",
+  },
+  {
+    label: "Reports",
+    href: "/reports",
+    description: "Configurable scheduled snapshots",
+  },
+  {
+    label: "Settings",
+    href: "/settings",
+    description: "Project and integration config",
+  },
 ];
 
 export function MobileNav() {
@@ -19,18 +36,8 @@ export function MobileNav() {
     setOpen(false);
   }, [pathname]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [open]);
+  useEscape(open, () => setOpen(false));
+  useScrollLock(open);
 
   return (
     <>
@@ -39,7 +46,7 @@ export function MobileNav() {
         aria-label="Open navigation"
         aria-expanded={open}
         onClick={() => setOpen(true)}
-        className="-ml-1 inline-flex h-10 w-10 items-center justify-center rounded-sm text-ink hover:bg-surface-2 active:scale-[0.97] lg:hidden"
+        className="-ml-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-sm text-ink hover:bg-surface-2 active:scale-[0.97] lg:hidden"
       >
         <svg
           width="20"
@@ -58,20 +65,9 @@ export function MobileNav() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            type="button"
-            aria-label="Close navigation"
-            onClick={() => setOpen(false)}
-            className="drawer-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm"
-          />
-          <aside
-            role="dialog"
-            aria-modal="true"
-            aria-label="Navigation"
-            className="drawer-panel absolute inset-y-0 left-0 flex w-[280px] max-w-[85vw] flex-col border-r border-line bg-surface"
-          >
-            <div className="flex h-14 items-center justify-between border-b border-line px-5">
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
+          <div className="absolute inset-0 flex flex-col bg-bg">
+            <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-4 sm:px-6">
               <Link
                 href="/"
                 onClick={() => setOpen(false)}
@@ -90,11 +86,11 @@ export function MobileNav() {
                 type="button"
                 aria-label="Close navigation"
                 onClick={() => setOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-sm text-ink-3 hover:bg-surface-2 hover:text-ink"
+                className="-mr-1 inline-flex h-10 w-10 items-center justify-center rounded-sm text-ink-2 hover:bg-surface-2 hover:text-ink"
               >
-                <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
                   <path
-                    d="M3 3l10 10M13 3L3 13"
+                    d="M4 4l10 10M14 4L4 14"
                     stroke="currentColor"
                     strokeWidth="1.6"
                     strokeLinecap="round"
@@ -102,40 +98,55 @@ export function MobileNav() {
                 </svg>
               </button>
             </div>
-            <nav className="flex flex-col gap-1 px-3 py-4">
-              {NAV.map((item) => {
-                const active =
-                  pathname === item.href ||
-                  pathname.startsWith(item.href + "/");
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    aria-current={active ? "page" : undefined}
-                    className={`relative rounded-sm px-3 py-3 text-[15px] transition-colors duration-[120ms] ${
-                      active
-                        ? "bg-surface-2 text-ink"
-                        : "text-ink-2 hover:bg-surface-2 hover:text-ink"
-                    }`}
-                  >
-                    {active && (
-                      <span
-                        aria-hidden
-                        className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-accent"
-                      />
-                    )}
-                    {item.label}
-                  </Link>
-                );
-              })}
+
+            <nav className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+              <div className="t-micro mb-3 text-ink-3">Navigate</div>
+              <ul className="flex flex-col gap-2">
+                {NAV.map((item) => {
+                  const active =
+                    pathname === item.href ||
+                    pathname.startsWith(item.href + "/");
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        aria-current={active ? "page" : undefined}
+                        className={`relative block rounded-md border px-4 py-4 transition-colors duration-[120ms] ${
+                          active
+                            ? "border-accent-line bg-accent-soft"
+                            : "border-line bg-surface hover:bg-surface-2"
+                        }`}
+                      >
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span
+                            className={`t-h1 ${active ? "text-accent" : "text-ink"}`}
+                          >
+                            {item.label}
+                          </span>
+                          <span
+                            aria-hidden
+                            className={`text-lg ${active ? "text-accent" : "text-ink-3"}`}
+                          >
+                            →
+                          </span>
+                        </div>
+                        <div className="mt-1 t-small text-ink-3">
+                          {item.description}
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
             </nav>
-            <div className="mt-auto px-5 pb-5">
-              <div className="rounded-md border border-line-2 bg-surface-2 p-3 t-small text-ink-2">
-                <div className="t-micro mb-1 text-ink-3">Preview</div>
+
+            <div className="shrink-0 border-t border-line bg-surface px-4 py-4 sm:px-6">
+              <div className="t-micro mb-1 text-ink-3">Preview</div>
+              <p className="t-small text-ink-2">
                 Auth is disabled. Shell and placeholder data only.
-              </div>
+              </p>
             </div>
-          </aside>
+          </div>
         </div>
       )}
     </>
