@@ -59,10 +59,25 @@ export type Project = {
 export type Report = {
   id: string;
   name: string;
+  description: string;
   scope: string;
+  scopeKind: "project" | "tag" | "account";
   cadence: "one-off" | "weekly" | "monthly";
+  schedule: string;
   recipients: number;
+  recipientEmails: string[];
+  status: "live" | "paused" | "draft";
   lastSentAt: string | null;
+  accountIds: string[];
+  history: ReportHistoryEntry[];
+};
+
+export type ReportHistoryEntry = {
+  id: string;
+  sentAt: string;
+  status: "delivered" | "failed";
+  recipients: number;
+  accounts: number;
 };
 
 export const placeholderAccounts: Account[] = [
@@ -235,25 +250,119 @@ export const placeholderReports: Report[] = [
   {
     id: "rep_01",
     name: "Client X — Monthly partner roundup",
+    description:
+      "Top 25 partner accounts for the Client X retainer. Sent on the 1st of each month.",
     scope: "Project · Client X Watchlist",
+    scopeKind: "project",
     cadence: "monthly",
+    schedule: "1st of month · 08:00 GMT",
     recipients: 3,
+    recipientEmails: [
+      "campaigns@clientx.com",
+      "lead@clientx.com",
+      "josh@exhalestudios.co",
+    ],
+    status: "live",
     lastSentAt: "2026-05-01T08:05:00Z",
+    accountIds: ["acc_05", "acc_07", "acc_02", "acc_01", "acc_03"],
+    history: [
+      {
+        id: "h_01",
+        sentAt: "2026-05-01T08:05:00Z",
+        status: "delivered",
+        recipients: 3,
+        accounts: 25,
+      },
+      {
+        id: "h_02",
+        sentAt: "2026-04-01T08:04:00Z",
+        status: "delivered",
+        recipients: 3,
+        accounts: 24,
+      },
+      {
+        id: "h_03",
+        sentAt: "2026-03-01T08:07:00Z",
+        status: "delivered",
+        recipients: 3,
+        accounts: 22,
+      },
+      {
+        id: "h_04",
+        sentAt: "2026-02-01T08:06:00Z",
+        status: "failed",
+        recipients: 3,
+        accounts: 21,
+      },
+    ],
   },
   {
     id: "rep_02",
     name: "Indie music weekly",
+    description: "Every UK indie music account in the project, ranked by health.",
     scope: "Tag · music",
+    scopeKind: "tag",
     cadence: "weekly",
+    schedule: "Mon · 09:00 GMT",
     recipients: 5,
+    recipientEmails: [
+      "josh@exhalestudios.co",
+      "lab@exhalestudios.co",
+      "alice@exhalestudios.co",
+      "kit@exhalestudios.co",
+      "campaigns@exhalestudios.co",
+    ],
+    status: "live",
     lastSentAt: "2026-05-12T08:10:00Z",
+    accountIds: ["acc_01", "acc_05", "acc_04"],
+    history: [
+      {
+        id: "h_05",
+        sentAt: "2026-05-12T08:10:00Z",
+        status: "delivered",
+        recipients: 5,
+        accounts: 12,
+      },
+      {
+        id: "h_06",
+        sentAt: "2026-05-05T08:09:00Z",
+        status: "delivered",
+        recipients: 5,
+        accounts: 12,
+      },
+      {
+        id: "h_07",
+        sentAt: "2026-04-28T08:08:00Z",
+        status: "delivered",
+        recipients: 4,
+        accounts: 11,
+      },
+    ],
   },
   {
     id: "rep_03",
     name: "Quiet Mornings spike check",
+    description:
+      "One-off snapshot for the @quietmornings momentum spike, paused after first send.",
     scope: "Account · @quietmornings",
+    scopeKind: "account",
     cadence: "one-off",
+    schedule: "—",
     recipients: 1,
+    recipientEmails: ["josh@exhalestudios.co"],
+    status: "draft",
     lastSentAt: null,
+    accountIds: ["acc_06"],
+    history: [],
   },
 ];
+
+export function findReport(id: string) {
+  return placeholderReports.find((r) => r.id === id) ?? null;
+}
+
+export function accountsForReport(report: Report) {
+  return report.accountIds
+    .map((id) => placeholderAccounts.find((a) => a.id === id))
+    .filter((a): a is Account => Boolean(a));
+}
