@@ -1,0 +1,340 @@
+"use client";
+
+import { Sheet } from "@/components/sheet";
+import { CATEGORIES, placeholderProjects } from "@/lib/placeholder-data";
+
+function TextField({
+  label,
+  placeholder,
+  hint,
+  multiline = false,
+  type = "text",
+}: {
+  label: string;
+  placeholder: string;
+  hint?: string;
+  multiline?: boolean;
+  type?: string;
+}) {
+  return (
+    <label className="mb-4 block">
+      <span className="t-micro mb-1.5 block text-ink-3">{label}</span>
+      {multiline ? (
+        <textarea
+          disabled
+          placeholder={placeholder}
+          rows={3}
+          className="w-full resize-none rounded-sm border border-line-2 bg-surface-2 px-3 py-2 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-70"
+        />
+      ) : (
+        <input
+          disabled
+          type={type}
+          placeholder={placeholder}
+          className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-70"
+        />
+      )}
+      {hint && (
+        <span className="mt-1 block t-small text-ink-3">{hint}</span>
+      )}
+    </label>
+  );
+}
+
+function Segmented({
+  label,
+  options,
+  active,
+}: {
+  label: string;
+  options: string[];
+  active: string;
+}) {
+  return (
+    <div className="mb-4">
+      <span className="t-micro mb-1.5 block text-ink-3">{label}</span>
+      <div className="grid grid-cols-3 gap-1 rounded-sm border border-line-2 bg-surface-2 p-1">
+        {options.map((o) => (
+          <button
+            key={o}
+            type="button"
+            disabled
+            className={`tap-btn rounded-xs px-2 py-1.5 t-small font-medium transition-colors duration-[120ms] disabled:cursor-not-allowed ${
+              o === active
+                ? "bg-bg text-ink"
+                : "text-ink-2 hover:bg-bg/40 hover:text-ink"
+            }`}
+          >
+            {o}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FooterButtons({
+  onClose,
+  cta,
+}: {
+  onClose: () => void;
+  cta: string;
+}) {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onClose}
+        className="tap-btn rounded-sm border border-line-2 bg-surface px-4 py-2.5 t-body font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        disabled
+        className="tap-btn rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {cta}
+      </button>
+    </>
+  );
+}
+
+function PreviewNote() {
+  return (
+    <p className="mt-2 rounded-sm border border-accent-line bg-accent-soft px-3 py-2 t-small text-accent">
+      Preview only. Submission is disabled until the API and DB layer are
+      wired up.
+    </p>
+  );
+}
+
+export function AddAccountSheet({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Add account"
+      description="Paste a TikTok URL — handle is detected automatically."
+      footer={<FooterButtons onClose={onClose} cta="Add to project" />}
+    >
+      <TextField
+        label="Profile URL"
+        type="url"
+        placeholder="https://www.tiktok.com/@northlight"
+      />
+      <Segmented
+        label="Tier"
+        options={["Daily", "Weekly", "Hourly"]}
+        active="Daily"
+      />
+      <label className="mb-4 block">
+        <span className="t-micro mb-1.5 block text-ink-3">Category</span>
+        <select
+          disabled
+          className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink disabled:opacity-70"
+          defaultValue=""
+        >
+          <option value="">Pick a category…</option>
+          {CATEGORIES.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <PreviewNote />
+    </Sheet>
+  );
+}
+
+export function NewReportSheet({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="New report"
+      description="Schedule a snapshot delivered by email."
+      footer={<FooterButtons onClose={onClose} cta="Create & edit" />}
+    >
+      <TextField
+        label="Name"
+        placeholder="Client X — monthly partner roundup"
+      />
+      <TextField
+        label="Description"
+        placeholder="Top performing partner accounts this month"
+        multiline
+      />
+      <Segmented
+        label="Cadence"
+        options={["One-off", "Weekly", "Monthly"]}
+        active="Monthly"
+      />
+      <Segmented
+        label="Scope"
+        options={["Category", "Tag", "Specific"]}
+        active="Category"
+      />
+      <p className="mt-2 t-small text-ink-3">
+        You can refine recipients, scope and schedule after creating.
+      </p>
+      <PreviewNote />
+    </Sheet>
+  );
+}
+
+export function TeamSheet({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Team & access"
+      description="Members can edit. Viewers see scheduled reports only."
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="tap-btn rounded-sm border border-line-2 bg-surface px-4 py-2.5 t-body font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
+          >
+            Copy invite link
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="tap-btn rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
+          >
+            Done
+          </button>
+        </>
+      }
+    >
+      <section className="mb-5">
+        <h3 className="t-micro mb-2 text-ink-3">Members</h3>
+        <TeamRow
+          initials="JR"
+          name="Josh Roxby"
+          email="josh@exhalestudios.co"
+          role="Owner"
+          tone="owner"
+        />
+      </section>
+
+      <section className="mb-5">
+        <h3 className="t-micro mb-2 text-ink-3">Report viewers</h3>
+        <TeamRow
+          initials="SR"
+          name="Sarah Reed"
+          email="sarah@studio.com"
+          role="Viewer"
+          tone="viewer"
+          removable
+        />
+      </section>
+
+      <section>
+        <h3 className="t-micro mb-2 text-ink-3">Invite by email</h3>
+        <div className="flex gap-2">
+          <input
+            disabled
+            type="email"
+            placeholder="name@example.com"
+            className="h-10 flex-1 rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-70"
+          />
+          <button
+            type="button"
+            disabled
+            className="tap-btn rounded-sm bg-accent px-3 t-body font-semibold text-[#0A0A0A] disabled:opacity-50"
+          >
+            Send invite
+          </button>
+        </div>
+        <p className="mt-1.5 t-small text-ink-3">
+          Invited users join as Viewers by default. Promote to Member from
+          their row.
+        </p>
+        <PreviewNote />
+      </section>
+    </Sheet>
+  );
+}
+
+function TeamRow({
+  initials,
+  name,
+  email,
+  role,
+  tone,
+  removable = false,
+}: {
+  initials: string;
+  name: string;
+  email: string;
+  role: string;
+  tone: "owner" | "viewer";
+  removable?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-md border border-line bg-surface px-3 py-3">
+      <span
+        aria-hidden
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold ring-1 ring-line-2 ${
+          tone === "owner"
+            ? "bg-accent text-[#0A0A0A] ring-accent-line"
+            : "bg-surface-3 text-ink"
+        }`}
+      >
+        {initials}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block t-body font-medium text-ink">{name}</span>
+        <span className="block t-small truncate text-ink-3">{email}</span>
+      </span>
+      <span
+        className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 ${
+          tone === "owner"
+            ? "bg-accent-soft text-accent"
+            : "bg-surface-3 text-ink-3"
+        }`}
+        style={{ fontSize: 10, fontWeight: 600 }}
+      >
+        {role}
+      </span>
+      {removable && (
+        <button
+          type="button"
+          aria-label={`Remove ${name}`}
+          className="tap-btn -mr-1 inline-flex h-8 w-8 items-center justify-center rounded-sm text-ink-3 hover:bg-surface-2 hover:text-ink"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function projectsExportPreview() {
+  // Placeholder export used by the drawer's project card if we wire a real
+  // switcher later. Keeps the placeholder data import meaningful for tree-
+  // shaking checks.
+  return placeholderProjects.length;
+}
