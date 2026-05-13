@@ -23,7 +23,7 @@ export function FloatNav() {
     <nav
       aria-label="Primary"
       className="absolute z-[var(--z-tabbar)] flex items-center gap-0.5 rounded-sm border border-line-2 bg-surface p-1 shadow-[var(--sh-nav)]"
-      style={{ bottom: 12, left: 4 }}
+      style={{ bottom: 12, left: 12 }}
     >
       {NAV.map(({ href, label, Icon }) => {
         const active = pathname === href || pathname.startsWith(href + "/");

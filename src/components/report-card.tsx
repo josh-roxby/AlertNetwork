@@ -2,12 +2,7 @@ import Link from "next/link";
 import { type Report } from "@/lib/placeholder-data";
 import { relativeDate } from "@/lib/format";
 
-type Status = "live" | "paused" | "draft";
-
-function statusFor(r: Report): Status {
-  if (r.cadence === "one-off") return "draft";
-  return r.lastSentAt ? "live" : "paused";
-}
+type Status = Report["status"];
 
 const STATUS_STYLE: Record<Status, { wrap: string; dot: string; label: string }> =
   {
@@ -35,7 +30,7 @@ const CADENCE_LABEL: Record<Report["cadence"], string> = {
 };
 
 export function ReportCard({ report }: { report: Report }) {
-  const s = STATUS_STYLE[statusFor(report)];
+  const s = STATUS_STYLE[report.status];
 
   return (
     <Link
@@ -69,7 +64,7 @@ export function ReportCard({ report }: { report: Report }) {
           overflow: "hidden",
         }}
       >
-        {report.scope}
+        {report.description}
       </p>
       <div className="mt-3 grid grid-cols-3 gap-2 border-t border-line pt-3">
         <Meta label="Cadence" value={CADENCE_LABEL[report.cadence]} />

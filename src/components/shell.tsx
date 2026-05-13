@@ -11,7 +11,7 @@ import {
   NewReportSheet,
   TeamSheet,
 } from "@/components/sheets";
-import { placeholderProjects } from "@/lib/placeholder-data";
+import { findReport, placeholderProjects } from "@/lib/placeholder-data";
 
 function headerFor(pathname: string) {
   if (pathname === "/" || pathname.startsWith("/dashboard")) {
@@ -23,7 +23,13 @@ function headerFor(pathname: string) {
   }
   if (pathname.startsWith("/accounts")) return { title: "Accounts" };
   if (pathname.startsWith("/reports/")) {
-    return { eyebrow: "Reports", title: "Report", backHref: "/reports" };
+    const id = pathname.split("/")[2];
+    const report = id ? findReport(id) : null;
+    return {
+      eyebrow: "Reports",
+      title: report?.name ?? "Report",
+      backHref: "/reports",
+    };
   }
   if (pathname.startsWith("/reports")) return { title: "Reports" };
   if (pathname.startsWith("/settings")) return { title: "Settings" };

@@ -50,7 +50,7 @@ export function Fab() {
       onClick={onClick}
       aria-label={spec.label}
       className="tap-fab absolute z-[var(--z-fab)] inline-flex h-[46px] w-[46px] items-center justify-center rounded-xs bg-accent text-[#0A0A0A] shadow-[var(--sh-fab)] transition-colors duration-[120ms] hover:bg-accent-dim"
-      style={{ bottom: 16, right: 4 }}
+      style={{ bottom: 16, right: 12 }}
     >
       <Icon stroke="#0A0A0A" />
     </button>
