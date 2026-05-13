@@ -4,8 +4,8 @@ import { TopBar } from "@/components/top-bar";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid min-h-screen grid-cols-[240px_1fr]">
-      <aside className="sticky top-0 flex h-screen flex-col border-r border-line bg-surface">
+    <div className="lg:grid lg:min-h-screen lg:grid-cols-[240px_1fr]">
+      <aside className="sticky top-0 hidden h-screen flex-col border-r border-line bg-surface lg:flex">
         <Link
           href="/"
           className="flex items-center gap-2 px-5 pt-5 pb-6 text-ink"
@@ -27,7 +27,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
       <div className="flex min-h-screen flex-col">
         <TopBar />
-        <main className="mx-auto w-full max-w-[1440px] flex-1 px-6 py-6">
+        <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-5 sm:px-6 sm:py-6">
           {children}
         </main>
       </div>

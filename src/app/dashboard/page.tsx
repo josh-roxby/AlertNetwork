@@ -28,7 +28,7 @@ export default function DashboardPage() {
         description="Live snapshot of every monitored account in the current project."
       />
 
-      <section className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="mb-5 grid grid-cols-2 gap-2 sm:mb-6 sm:gap-3 lg:grid-cols-4">
         <Stat label="Accounts" value={accounts.length.toString()} />
         <Stat
           label="Avg health"
@@ -47,23 +47,25 @@ export default function DashboardPage() {
         />
       </section>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="t-micro mr-1 text-ink-3">Filter</span>
-        {(["All", "Daily", "Weekly", "Excellent", "Movers"] as const).map(
-          (chip, i) => (
-            <FilterChip key={chip} active={i === 0}>
-              {chip}
-            </FilterChip>
-          ),
-        )}
-        <div className="ml-auto t-micro text-ink-3">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="t-micro shrink-0 text-ink-3">Filter</span>
+        <div className="scroll-x -mx-4 flex flex-1 items-center gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+          {(["All", "Daily", "Weekly", "Excellent", "Movers"] as const).map(
+            (chip, i) => (
+              <FilterChip key={chip} active={i === 0}>
+                {chip}
+              </FilterChip>
+            ),
+          )}
+        </div>
+        <div className="t-micro ml-auto hidden text-ink-3 lg:block">
           Sorted by health · desc
         </div>
       </div>
 
       <section className="overflow-hidden rounded-md border border-line bg-surface">
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div className="scroll-x overflow-x-auto">
+          <table className="w-full min-w-[720px]">
             <thead className="bg-surface-3">
               <tr className="t-micro text-left text-ink-3">
                 <th scope="col" className="px-4 py-3">
@@ -177,12 +179,14 @@ function Stat({
   hint?: string;
 }) {
   return (
-    <div className="rounded-md border border-line bg-surface p-4">
+    <div className="rounded-md border border-line bg-surface p-3 sm:p-4">
       <div className="t-micro text-ink-3">{label}</div>
       <div data-numeric className="t-display-3 mt-2 text-ink">
         {value}
       </div>
-      {hint && <div className="mt-1 t-small text-ink-3">{hint}</div>}
+      {hint && (
+        <div className="mt-1 t-small hidden text-ink-3 sm:block">{hint}</div>
+      )}
     </div>
   );
 }
@@ -197,7 +201,7 @@ function FilterChip({
   return (
     <button
       type="button"
-      className={`rounded-sm px-3 py-1.5 t-small transition-colors duration-[120ms] ${
+      className={`shrink-0 rounded-sm px-3 py-2 t-small transition-colors duration-[120ms] ${
         active
           ? "border border-accent-line bg-accent-soft text-accent"
           : "border border-line-2 bg-surface text-ink-2 hover:bg-surface-2"
