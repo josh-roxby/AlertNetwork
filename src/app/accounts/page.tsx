@@ -17,18 +17,22 @@ export default function AccountsPage() {
         actions={<Button>Add account</Button>}
       />
 
-      <div className="mb-5 flex flex-wrap items-center gap-2">
-        <span className="t-micro mr-1 text-ink-3">Categories</span>
-        {CATEGORIES.map((c) => (
-          <CategoryTag key={c.id} category={c.id} />
-        ))}
+      <div className="mb-5 flex items-center gap-2">
+        <span className="t-micro shrink-0 text-ink-3">Categories</span>
+        <div className="scroll-x -mx-4 flex flex-1 items-center gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+          {CATEGORIES.map((c) => (
+            <span key={c.id} className="shrink-0">
+              <CategoryTag category={c.id} />
+            </span>
+          ))}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
         {placeholderAccounts.map((a) => (
           <article
             key={a.id}
-            className="rounded-md border border-line bg-surface p-6 transition-colors duration-[120ms] hover:border-line-2"
+            className="rounded-md border border-line bg-surface p-5 transition-colors duration-[120ms] hover:border-line-2 sm:p-6"
           >
             <div className="t-micro text-ink-3">
               TIKTOK · <span className="text-ink-2">{a.handle}</span>

@@ -9,11 +9,11 @@ export default function SettingsPage() {
         description="Project, monitoring, scoring, and integration settings. Skeleton only — wired up alongside the auth + DB layer."
       />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
         {SECTIONS.map((s) => (
           <article
             key={s.title}
-            className="rounded-md border border-line bg-surface p-5"
+            className="rounded-md border border-line bg-surface p-4 sm:p-5"
           >
             <h3 className="t-h1 text-ink">{s.title}</h3>
             <p className="mt-2 t-body text-ink-2">{s.description}</p>
