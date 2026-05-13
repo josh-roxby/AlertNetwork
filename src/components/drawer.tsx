@@ -70,10 +70,10 @@ export function Drawer() {
         type="button"
         aria-label="Close menu"
         onClick={closeDrawer}
-        className="drawer-backdrop fixed inset-0 z-[var(--z-backdrop)] bg-[var(--backdrop)] backdrop-blur-sm"
+        className="drawer-backdrop absolute inset-0 bg-[var(--backdrop)]"
       />
       <aside
-        className="drawer-panel relative ml-0 flex h-full max-w-[320px] flex-col border-r border-line bg-bg"
+        className="drawer-panel relative z-10 ml-0 flex h-full max-w-[320px] flex-col border-r border-line bg-bg"
         style={{ width: "82%" }}
       >
         <div className="sticky top-0 z-10 flex h-[52px] shrink-0 items-center justify-between border-b border-line bg-bg px-4">
