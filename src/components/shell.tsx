@@ -5,6 +5,7 @@ import { Header } from "@/components/header";
 import { FloatNav } from "@/components/float-nav";
 import { Fab } from "@/components/fab";
 import { Drawer } from "@/components/drawer";
+import { DesktopShell } from "@/components/desktop-shell";
 import {
   ShellProvider,
   useActiveProject,
@@ -69,26 +70,34 @@ function FrameInner({ children }: { children: React.ReactNode }) {
   const head = headerFor(pathname, activeProject?.name ?? "Workspace");
 
   return (
-    <div
-      className="relative mx-auto w-full max-w-[480px] overflow-hidden border-x border-line bg-bg lg:max-w-[640px]"
-      style={{ height: "100dvh" }}
-    >
-      <Header
-        eyebrow={head.eyebrow}
-        title={head.title}
-        backHref={head.backHref}
-      />
+    <>
+      {/* Desktop layout — sidebar + top bar at lg+; otherwise hidden. */}
+      <DesktopShell pageTitle={head.title} pageEyebrow={head.eyebrow}>
+        {children}
+      </DesktopShell>
 
-      <main
-        className="absolute inset-x-0 overflow-y-auto"
-        style={{ top: 52, bottom: 0, paddingBottom: 92 }}
+      {/* Mobile frame — hidden at lg+; visible below. */}
+      <div
+        className="relative mx-auto w-full max-w-[480px] overflow-hidden border-x border-line bg-bg lg:hidden"
+        style={{ height: "100dvh" }}
       >
-        <div className="px-4 pb-3 pt-4">{children}</div>
-      </main>
+        <Header
+          eyebrow={head.eyebrow}
+          title={head.title}
+          backHref={head.backHref}
+        />
 
-      <FloatNav />
-      <Fab />
-      <Drawer />
+        <main
+          className="absolute inset-x-0 overflow-y-auto"
+          style={{ top: 52, bottom: 0, paddingBottom: 92 }}
+        >
+          <div className="px-4 pb-3 pt-4">{children}</div>
+        </main>
+
+        <FloatNav />
+        <Fab />
+        <Drawer />
+      </div>
 
       <AddAccountSheet
         open={sheet?.kind === "addAccount"}
@@ -115,7 +124,7 @@ function FrameInner({ children }: { children: React.ReactNode }) {
         accountId={sheet?.kind === "editAccount" ? sheet.accountId : null}
         onClose={closeSheet}
       />
-    </div>
+    </>
   );
 }
 
