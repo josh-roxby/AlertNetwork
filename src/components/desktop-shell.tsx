@@ -15,8 +15,10 @@ import {
   IconDashboard,
   IconReports,
   IconSettings,
+  IconSignOut,
 } from "@/components/icons";
 import type { Category } from "@/lib/placeholder-data";
+import { useAuthUser } from "@/lib/use-auth-user";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", Icon: IconDashboard },
@@ -56,6 +58,9 @@ export function DesktopShell({
 }) {
   const pathname = usePathname();
   const project = useActiveProject();
+  const user = useAuthUser();
+  const email = user?.email ?? "—";
+  const initial = email[0]?.toUpperCase() ?? "?";
 
   const accountsByCategory = placeholderAccounts.reduce<Record<string, number>>(
     (acc, a) => {
@@ -106,13 +111,13 @@ export function DesktopShell({
           </Link>
           <ThemeToggle />
           <NotificationsMenu />
-          <button
-            type="button"
-            aria-label="User menu"
-            className="tap-btn flex h-9 w-9 items-center justify-center rounded-full bg-surface-2 text-[12px] font-semibold text-ink ring-1 ring-line-2 hover:bg-surface-3"
+          <span
+            aria-label={`Signed in as ${email}`}
+            title={email}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-2 text-[12px] font-semibold text-ink ring-1 ring-line-2"
           >
-            JR
-          </button>
+            {initial}
+          </span>
         </div>
       </header>
 
@@ -186,26 +191,29 @@ export function DesktopShell({
             </Link>
           </nav>
 
-          <div className="shrink-0 border-t border-line bg-surface px-3 py-3">
-            <Link
-              href="/projects"
-              className="flex items-center gap-3 rounded-sm px-2 py-1 hover:bg-surface-2"
+          <div className="flex shrink-0 items-center gap-2 border-t border-line bg-surface px-3 py-3">
+            <span
+              aria-hidden
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[12px] font-semibold text-ink ring-1 ring-line-2"
             >
-              <span
-                aria-hidden
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-3 text-[12px] font-semibold text-ink ring-1 ring-line-2"
+              {initial}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block t-small truncate text-ink" title={email}>
+                {email}
+              </span>
+              <span className="block t-micro text-ink-3">Signed in</span>
+            </span>
+            <form action="/auth/sign-out" method="POST">
+              <button
+                type="submit"
+                aria-label="Sign out"
+                title="Sign out"
+                className="tap-btn inline-flex h-9 w-9 items-center justify-center rounded-sm text-ink-3 hover:bg-surface-2 hover:text-ink"
               >
-                JR
-              </span>
-              <span className="min-w-0">
-                <span className="block t-body font-medium text-ink">
-                  Josh Roxby
-                </span>
-                <span className="block t-small truncate text-ink-3">
-                  josh@exhalestudios.co
-                </span>
-              </span>
-            </Link>
+                <IconSignOut />
+              </button>
+            </form>
           </div>
         </aside>
 
