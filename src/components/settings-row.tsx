@@ -3,6 +3,7 @@ import { IconChevronRight } from "@/components/icons";
 type Base = {
   label: string;
   subtitle?: string;
+  onClick?: () => void;
 };
 
 type Variant =
@@ -46,7 +47,9 @@ export function SettingsRow(props: Variant) {
   return (
     <button
       type="button"
-      className="tap-row flex w-full items-center gap-3 border-b border-line px-3 py-3 text-left last:border-b-0 hover:bg-surface-2"
+      onClick={props.onClick}
+      disabled={!props.onClick && props.kind !== "danger"}
+      className="tap-row flex w-full items-center gap-3 border-b border-line px-3 py-3 text-left last:border-b-0 enabled:hover:bg-surface-2 disabled:cursor-default"
       style={{ minHeight: 56 }}
     >
       <span className="min-w-0 flex-1">

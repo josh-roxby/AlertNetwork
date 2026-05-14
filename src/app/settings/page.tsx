@@ -1,7 +1,12 @@
+"use client";
+
 import { AnchorScroller } from "@/components/anchor-scroller";
 import { SettingsRow, SettingsSection } from "@/components/settings-row";
+import { useShell } from "@/components/shell-context";
 
 export default function SettingsPage() {
+  const { openSheet } = useShell();
+
   return (
     <>
       <AnchorScroller />
@@ -14,11 +19,7 @@ export default function SettingsPage() {
       </section>
 
       <SettingsSection label="Project">
-        <SettingsRow
-          kind="value"
-          label="Name"
-          value="Spring Sponsor · Q2"
-        />
+        <SettingsRow kind="value" label="Name" value="Spring Sponsor · Q2" />
         <SettingsRow
           kind="value"
           label="Description"
@@ -45,8 +46,18 @@ export default function SettingsPage() {
       </SettingsSection>
 
       <SettingsSection label="Team & access">
-        <SettingsRow kind="value" label="Members" value="1" />
-        <SettingsRow kind="value" label="Report viewers" value="3" />
+        <SettingsRow
+          kind="value"
+          label="Members"
+          value="1"
+          onClick={() => openSheet({ kind: "manageTeam" })}
+        />
+        <SettingsRow
+          kind="value"
+          label="Report viewers"
+          value="3"
+          onClick={() => openSheet({ kind: "manageTeam" })}
+        />
         <SettingsRow
           kind="value"
           label="Copy invite link"
@@ -57,8 +68,18 @@ export default function SettingsPage() {
 
       <div id="tags-categories-section" className="scroll-mt-4" />
       <SettingsSection label="Tags & categories">
-        <SettingsRow kind="value" label="Categories" value="8" />
-        <SettingsRow kind="value" label="Project tags" value="14" />
+        <SettingsRow
+          kind="value"
+          label="Categories"
+          value="8"
+          onClick={() => openSheet({ kind: "categories" })}
+        />
+        <SettingsRow
+          kind="value"
+          label="Project tags"
+          value="14"
+          onClick={() => openSheet({ kind: "tags" })}
+        />
       </SettingsSection>
 
       <SettingsSection label="Integrations">

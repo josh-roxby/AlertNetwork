@@ -11,6 +11,9 @@ import {
   NewReportSheet,
   TeamSheet,
 } from "@/components/sheets";
+import { CategoriesSheet } from "@/components/sheets/categories-sheet";
+import { TagsSheet } from "@/components/sheets/tags-sheet";
+import { EditAccountSheet } from "@/components/sheets/edit-account-sheet";
 import {
   findAccount,
   findReport,
@@ -86,14 +89,26 @@ function FrameInner({ children }: { children: React.ReactNode }) {
       <Drawer />
 
       <AddAccountSheet
-        open={sheet === "addAccount"}
+        open={sheet?.kind === "addAccount"}
         onClose={closeSheet}
       />
       <NewReportSheet
-        open={sheet === "newReport"}
+        open={sheet?.kind === "newReport"}
         onClose={closeSheet}
       />
-      <TeamSheet open={sheet === "manageTeam"} onClose={closeSheet} />
+      <TeamSheet
+        open={sheet?.kind === "manageTeam"}
+        onClose={closeSheet}
+      />
+      <CategoriesSheet
+        open={sheet?.kind === "categories"}
+        onClose={closeSheet}
+      />
+      <TagsSheet open={sheet?.kind === "tags"} onClose={closeSheet} />
+      <EditAccountSheet
+        accountId={sheet?.kind === "editAccount" ? sheet.accountId : null}
+        onClose={closeSheet}
+      />
     </div>
   );
 }

@@ -38,7 +38,12 @@ export function Fab() {
   if (spec.kind === "none") return null;
 
   const onClick =
-    spec.kind === "drawer" ? openDrawer : () => openSheet(spec.sheet);
+    spec.kind === "drawer"
+      ? openDrawer
+      : () =>
+          openSheet({
+            kind: spec.sheet as "addAccount" | "newReport" | "manageTeam",
+          });
 
   const Icon =
     spec.kind === "drawer"

@@ -18,6 +18,7 @@ import {
 } from "@/lib/placeholder-data";
 import { compactNumber, percent } from "@/lib/format";
 import { healthBand } from "@/components/health-score";
+import { useShell } from "@/components/shell-context";
 
 const CATEGORY_COLOR: Record<Account["category"], string> = {
   fashion: "bg-cat-fashion",
@@ -60,6 +61,7 @@ export function AccountDetail({
   series: AccountSeriesPoint[];
 }) {
   const [range, setRange] = useState<Range>("30d");
+  const { openSheet } = useShell();
 
   const filtered = useMemo(
     () => series.slice(-RANGE_DAYS[range]),
@@ -94,6 +96,15 @@ export function AccountDetail({
           </h1>
           <div className="mt-0.5 t-body text-ink-3">{account.handle}</div>
         </div>
+        <button
+          type="button"
+          onClick={() =>
+            openSheet({ kind: "editAccount", accountId: account.id })
+          }
+          className="tap-btn inline-flex shrink-0 items-center gap-1 rounded-full border border-line-2 bg-surface px-3 py-1.5 t-small font-semibold text-ink-2 hover:bg-surface-2 hover:text-ink"
+        >
+          Edit
+        </button>
       </section>
 
       <section className="mb-4 flex flex-wrap items-center gap-1.5">
