@@ -35,9 +35,10 @@ Project work list for AlertNetwork. Organised by feature group. Format: `A-1-1` 
   - `project_members` (project_id, user_id, role: 'owner' | 'member' | 'viewer')
   - `categories` (id, project_id, label, palette_id)
   - `tags` (id, project_id, label)
-  - `accounts` (id, project_id, handle, display_name, platform, url, category_id, followers, created_at, last_logged_at)
+  - `accounts` (id, project_id, handle, display_name, platform, url, category_id, followers, created_at, last_logged_at, last_scraped_at)
   - `account_tags` (account_id, tag_id)
-  - `snapshots` (id, account_id, taken_at, median_views, total_views, engagement_ratio, posts_per_cycle, health_score)
+  - `posts` (id, account_id, platform_post_id UNIQUE w/ account_id, posted_at, url, caption, views, likes, comments, shares, saves, raw jsonb, first_seen_at, last_scraped_at, updated_at) — upsert target for the daily scrape
+  - `snapshots` (id, account_id, taken_at, median_views, total_views, engagement_ratio, posts_per_cycle, health_score) — rolled up nightly from `posts`
   - `reports` (id, project_id, name, description, cadence: 'weekly' | 'monthly', schedule, scope_kind, status, is_featured, password_hash, last_sent_at)
   - `report_accounts` (report_id, account_id) — for scope='account'
   - `report_categories` (report_id, category_id) — for scope='tag'
@@ -52,13 +53,32 @@ Project work list for AlertNetwork. Organised by feature group. Format: `A-1-1` 
 
 ### N. Scrape + email function
 
-- [ ] **N-1** Authenticated cron API at `/api/cron/scrape`. Iterates every account on Supabase across projects and pulls the last 24 hours of TikTok data. Stores snapshots. Single shared secret in the `Authorization` header (env var).
-- [ ] **N-2** TikTok API integration. **Waiting on the API spec from the user** — request shape, rate-limits, fields, error handling. Once received, normalise into the `snapshots` row shape from M-2.
-- [ ] **N-3** Report dispatch API at `/api/cron/reports`. Same cron fires this — iterate every report, decide if today is a send day (weekly → Monday; monthly → 1st), render the report (reuse `src/components/report-view.tsx` server-side or render to HTML email template), send via Gmail service account. Record the send in `report_history`.
+API surface (settled with user 2026-05-14):
+
+- `GET /api/accounts` → all accounts across the caller's projects with `{ id, url, project_id, last_scraped_at }`. Service-role variant exists for the cron path (no logged-in user).
+- `POST /api/scrape/tiktok-daily` → `{ accountId, url }`. Calls Apify `apidojo~tiktok-scraper-api` via `run-sync-get-dataset-items`, scoped to the single URL with a small `maxItems`. Filters results to the last 48h **server-side** (Apify's `dateRange` only applies to keyword search, not `startUrls`). Upserts into `posts` keyed by `platform_post_id`. Returns `{ scanned, new, updated }`.
+- `POST /api/cron/daily` → calls `getAccounts` (service role), iterates and calls `tiktok-daily` per account. Guarded by `CRON_SHARED_SECRET` in the `Authorization` header. Returns a summary per account.
+
+Apify constraints to bake in:
+- Endpoint: `https://api.apify.com/v2/acts/apidojo~tiktok-scraper-api/run-sync-get-dataset-items?token=…` — sync, returns dataset items in the response body. No polling.
+- 48-hour window must be filtered on our side using each post's `createTime` / equivalent; the actor returns most-recent first by default for user URLs but doesn't take a date filter for that input shape.
+- `maxItems` should cap each scrape; typical user feed surfaces ~30 posts. Start with `maxItems: 50`.
+- Keep raw response JSON in `posts.raw` (JSONB). Extract typed columns we actually chart against: `views, likes, comments, shares, saves, posted_at`. Engagement ratio is derived.
+- Cost guardrails: $0.0003/post means ~100 accounts × 30 posts × $0.0003 = ~$0.90/day. Note in env doc.
+
+Env vars to add in Vercel:
+- `APIFY_API_KEY`
+- `CRON_SHARED_SECRET` (32-char random; same value in the GitHub Actions secret)
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+
+- [ ] **N-1** `getAccounts` route + service-role Supabase client setup.
+- [ ] **N-2** `tiktokDailyScrape` route + Apify client (thin wrapper around fetch). 48h filter, post upsert keyed on `platform_post_id`.
+- [ ] **N-3** `dailyCron` route. Loops accounts, calls per-account scrape sequentially (or limited concurrency, e.g. 5). Guarded by `CRON_SHARED_SECRET`.
+- [ ] **N-4** Email/report dispatch — keep as a follow-on, not part of the daily-scrape slice. Wire after the scrape pipeline is producing real data.
 
 ### O. GitHub Cron
 
-- [ ] **O-1** `.github/workflows/cron.yml` with `schedule: '0 8 * * *'` (08:00 GMT daily). Two jobs: hit `/api/cron/scrape` and `/api/cron/reports` with the shared secret. Document the secret rotation runbook.
+- [ ] **O-1** `.github/workflows/cron.yml` with `schedule: '0 8 * * *'` (08:00 UTC daily). Hits `/api/cron/daily` on the deployed Vercel URL with the `CRON_SHARED_SECRET`. Document the secret rotation runbook. Email/report dispatch cron is a separate workflow added with N-4.
 
 ## Small carry-overs (still relevant)
 
