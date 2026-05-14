@@ -51,7 +51,7 @@ function fabForPath(pathname: string): FabSpec {
 }
 
 const className =
-  "tap-fab absolute z-[var(--z-fab)] inline-flex h-[46px] w-[46px] items-center justify-center rounded-xs bg-accent text-[#0A0A0A] shadow-[var(--sh-fab)] transition-colors duration-[120ms] hover:bg-accent-dim";
+  "tap-fab absolute z-[var(--z-fab)] inline-flex h-[46px] w-[46px] items-center justify-center rounded-xs bg-accent text-[#0A0A0A] shadow-[var(--sh-fab)] transition-colors duration-[120ms] hover:bg-accent-dim lg:hidden";
 const style = { bottom: 16, right: 12 } as const;
 
 export function Fab() {

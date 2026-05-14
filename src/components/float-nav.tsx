@@ -22,7 +22,7 @@ export function FloatNav() {
   return (
     <nav
       aria-label="Primary"
-      className="absolute z-[var(--z-tabbar)] flex items-center gap-0.5 rounded-sm border border-line-2 bg-surface p-1 shadow-[var(--sh-nav)]"
+      className="absolute z-[var(--z-tabbar)] flex items-center gap-0.5 rounded-sm border border-line-2 bg-surface p-1 shadow-[var(--sh-nav)] lg:hidden"
       style={{ bottom: 12, left: 12 }}
     >
       {NAV.map(({ href, label, Icon }) => {

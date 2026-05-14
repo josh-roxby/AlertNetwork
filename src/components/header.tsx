@@ -20,16 +20,28 @@ export function Header({
   const router = useRouter();
   const { openDrawer } = useShell();
 
+  function handleBack() {
+    // Prefer browser back so the user returns through whatever stack
+    // they navigated in via (e.g. dashboard → report → back goes home,
+    // /reports → report → back goes to /reports). If we're the first
+    // entry in the tab (deep link), fall back to the static parent.
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    if (backHref) router.push(backHref);
+  }
+
   return (
     <header
-      className="absolute inset-x-0 top-0 z-[var(--z-sticky)] grid h-[52px] grid-cols-[36px_1fr_auto] items-center gap-1 border-b border-line bg-bg px-1"
+      className="absolute inset-x-0 top-0 z-[var(--z-sticky)] grid h-[52px] grid-cols-[36px_1fr_auto] items-center gap-1 border-b border-line bg-bg px-1 lg:hidden"
       style={{ paddingInline: 4 }}
     >
       {backHref ? (
         <button
           type="button"
           aria-label="Back"
-          onClick={() => router.push(backHref)}
+          onClick={handleBack}
           className="tap-btn inline-flex h-9 w-9 items-center justify-center rounded-sm text-ink hover:bg-surface-2"
         >
           <IconBack />
