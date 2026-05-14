@@ -62,28 +62,55 @@ export function ReportView({
     <div className="min-h-screen bg-bg text-ink">
       <div className="mx-auto w-full max-w-[680px] px-4 py-8">
         <header className="mb-6 flex items-center justify-between gap-3 border-b border-line pb-4">
-          <div className="min-w-0">
-            <div
-              className="t-meta text-ink-3"
-              style={{ fontSize: 10, letterSpacing: "0.18em" }}
-            >
-              Alert Network · Report
-            </div>
-            <h1
-              className="mt-1 t-display-3 text-ink"
-              style={{ fontFamily: "var(--font-unbounded)" }}
-            >
-              {report.name}
-            </h1>
-          </div>
-          {historyEntry && (
+          <div className="min-w-0 flex items-center gap-2.5">
             <span
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-ink-2"
-              style={{ fontSize: 11, fontFamily: "var(--font-mono)" }}
+              aria-hidden
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-[#0A0A0A]"
+              style={{
+                fontFamily: "var(--font-unbounded)",
+                fontWeight: 800,
+                fontSize: 12,
+              }}
             >
-              Snapshot
+              A
             </span>
-          )}
+            <div className="min-w-0">
+              <div
+                className="t-meta text-ink-3"
+                style={{ fontSize: 10, letterSpacing: "0.18em" }}
+              >
+                Alert Network · Report
+              </div>
+              <h1
+                className="mt-0.5 t-display-3 text-ink"
+                style={{ fontFamily: "var(--font-unbounded)" }}
+              >
+                {report.name}
+              </h1>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {historyEntry && (
+              <span
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-ink-2"
+                style={{ fontSize: 11, fontFamily: "var(--font-mono)" }}
+              >
+                Snapshot
+              </span>
+            )}
+            <button
+              type="button"
+              data-print="hide"
+              onClick={() => {
+                if (typeof window !== "undefined") window.print();
+              }}
+              className="tap-btn inline-flex items-center gap-1.5 rounded-full border border-line-2 bg-surface px-3 py-1.5 t-small font-semibold text-ink-2 hover:bg-surface-2 hover:text-ink"
+              title="Save as PDF via your browser"
+            >
+              <PrintGlyph />
+              Print
+            </button>
+          </div>
         </header>
 
         <section className="mb-6">
@@ -166,5 +193,25 @@ function Sep() {
     <span aria-hidden className="text-ink-4">
       ·
     </span>
+  );
+}
+
+function PrintGlyph() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M3 5V2h8v3" />
+      <rect x="2" y="5" width="10" height="6" rx="1" />
+      <path d="M4 9h6v3H4z" />
+    </svg>
   );
 }

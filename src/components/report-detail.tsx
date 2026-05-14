@@ -381,6 +381,8 @@ function SettingsTab({ report }: { report: Report }) {
   const scopeOptions: Report["scopeKind"][] = ["project", "tag", "account"];
   const [featured, setFeatured] = useState(report.isFeatured);
   const [scope, setScope] = useState<Report["scopeKind"]>(report.scopeKind);
+  const [passwordOn, setPasswordOn] = useState(report.password !== null);
+  const [passwordValue, setPasswordValue] = useState(report.password ?? "");
   const [pickedCategories, setPickedCategories] = useState<Set<Category>>(
     () => new Set<Category>(),
   );
@@ -406,6 +408,13 @@ function SettingsTab({ report }: { report: Report }) {
       <FeatureToggle
         on={featured}
         onToggle={() => setFeatured((v) => !v)}
+      />
+
+      <PasswordToggle
+        on={passwordOn}
+        value={passwordValue}
+        onToggle={() => setPasswordOn((v) => !v)}
+        onChange={setPasswordValue}
       />
 
       <Field label="Name" defaultValue={report.name} />
@@ -551,6 +560,103 @@ function FeatureToggle({
         />
       </span>
     </button>
+  );
+}
+
+function PasswordToggle({
+  on,
+  value,
+  onToggle,
+  onChange,
+}: {
+  on: boolean;
+  value: string;
+  onToggle: () => void;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div
+      className={`mb-5 rounded-md border transition-colors duration-[120ms] ${
+        on ? "border-accent-line bg-accent-soft" : "border-line-2 bg-surface"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={on}
+        className="tap-row flex w-full items-center gap-3 px-4 py-3 text-left"
+      >
+        <span
+          aria-hidden
+          className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-sm ${
+            on ? "bg-accent text-[#0A0A0A]" : "bg-surface-2 text-ink-3"
+          }`}
+        >
+          <LockIcon />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span
+            className={`block t-body font-semibold ${on ? "text-accent" : "text-ink"}`}
+          >
+            {on ? "Password protected" : "Require password to view"}
+          </span>
+          <span className="mt-0.5 block t-small text-ink-3">
+            {on
+              ? "Recipients must enter the password to open the shareable view."
+              : "Add a password to gate the shareable view-only link."}
+          </span>
+        </span>
+        <span
+          aria-hidden
+          className={`relative inline-block h-6 w-10 shrink-0 rounded-full transition-colors duration-[120ms] ${
+            on ? "bg-accent" : "bg-surface-3"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-[#0A0A0A] transition-transform duration-[120ms] ${
+              on ? "translate-x-[18px]" : "translate-x-0.5"
+            }`}
+          />
+        </span>
+      </button>
+      {on && (
+        <div className="border-t border-line-2 px-4 py-3">
+          <label className="block">
+            <span className="t-micro mb-1.5 block text-ink-3">Password</span>
+            <input
+              type="text"
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder="e.g. clientx-2026"
+              className="h-10 w-full rounded-sm border border-line-2 bg-bg px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+            />
+          </label>
+          <p className="mt-1.5 t-small text-ink-3">
+            Anyone with the view link must enter this exact password. Share it
+            out-of-band — don&apos;t paste it next to the link.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" />
+      <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+    </svg>
   );
 }
 
