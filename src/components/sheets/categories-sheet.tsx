@@ -1,16 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Sheet } from "@/components/sheet";
+import { useShell } from "@/components/shell-context";
 import {
-  CATEGORIES,
-  placeholderAccounts,
-  type Category,
-} from "@/lib/placeholder-data";
+  createCategory,
+  deleteCategory,
+  updateCategory,
+} from "@/lib/data/categories";
+import type { CategoryRow } from "@/lib/data/types";
 
-// Canonical 8-colour palette tokens. New / edited categories pick from
-// this fixed set so the dashboard charts and dots stay consistent.
-const PALETTE: { id: Category; label: string; dot: string }[] = [
+const PALETTE: { id: string; label: string; dot: string }[] = [
   { id: "fashion", label: "Pink", dot: "bg-cat-fashion" },
   { id: "food", label: "Orange", dot: "bg-cat-food" },
   { id: "beauty", label: "Violet", dot: "bg-cat-beauty" },
@@ -21,12 +21,9 @@ const PALETTE: { id: Category; label: string; dot: string }[] = [
   { id: "lifestyle", label: "Teal", dot: "bg-cat-lifestyle" },
 ];
 
-type CategoryRow = {
-  id: string;
-  label: string;
-  paletteId: Category;
-  count: number;
-};
+function paletteDot(paletteId: string): string {
+  return PALETTE.find((p) => p.id === paletteId)?.dot ?? "bg-ink-4";
+}
 
 export function CategoriesSheet({
   open,
@@ -35,76 +32,86 @@ export function CategoriesSheet({
   open: boolean;
   onClose: () => void;
 }) {
-  const initialRows: CategoryRow[] = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const a of placeholderAccounts) {
-      counts[a.category] = (counts[a.category] ?? 0) + 1;
-    }
-    return CATEGORIES.map((c) => ({
-      id: c.id,
-      label: c.label,
-      paletteId: c.id,
-      count: counts[c.id] ?? 0,
-    }));
-  }, []);
+  const {
+    activeProjectId,
+    categories,
+    accounts,
+    refreshCategories,
+    refreshAccounts,
+  } = useShell();
 
-  const [rows, setRows] = useState<CategoryRow[]>(initialRows);
   const [editing, setEditing] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
-  const [draftPalette, setDraftPalette] = useState<Category>("fashion");
+  const [draftPalette, setDraftPalette] = useState<string>("fashion");
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState("");
+
+  const countsById = accounts.reduce<Record<string, number>>((acc, a) => {
+    if (a.category_id) acc[a.category_id] = (acc[a.category_id] ?? 0) + 1;
+    return acc;
+  }, {});
 
   function startEdit(row: CategoryRow) {
     setEditing(row.id);
     setDraftName(row.label);
-    setDraftPalette(row.paletteId);
+    setDraftPalette(row.palette_id);
     setCreating(false);
+    setError("");
   }
 
   function cancelEdit() {
     setEditing(null);
     setCreating(false);
     setDraftName("");
+    setError("");
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     if (!editing) return;
     if (draftName.trim().length === 0) return;
-    setRows(
-      rows.map((r) =>
-        r.id === editing
-          ? { ...r, label: draftName.trim(), paletteId: draftPalette }
-          : r,
-      ),
-    );
-    cancelEdit();
+    try {
+      await updateCategory(editing, {
+        label: draftName,
+        palette_id: draftPalette,
+      });
+      await refreshCategories();
+      cancelEdit();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save.");
+    }
   }
 
   function startCreate() {
     setCreating(true);
     setEditing(null);
     setDraftName("");
-    setDraftPalette(unusedPaletteId(rows));
+    setDraftPalette(unusedPaletteId(categories));
+    setError("");
   }
 
-  function saveCreate() {
+  async function saveCreate() {
+    if (!activeProjectId) return;
     if (draftName.trim().length === 0) return;
-    const id = `new_${Date.now()}`;
-    setRows([
-      ...rows,
-      {
-        id,
-        label: draftName.trim(),
-        paletteId: draftPalette,
-        count: 0,
-      },
-    ]);
-    cancelEdit();
+    try {
+      await createCategory(activeProjectId, draftName, draftPalette);
+      await refreshCategories();
+      cancelEdit();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't create.");
+    }
   }
 
-  function remove(id: string) {
-    setRows(rows.filter((r) => r.id !== id));
-    if (editing === id) cancelEdit();
+  async function remove(id: string) {
+    try {
+      await deleteCategory(id);
+      await refreshCategories();
+      // Deleting a category nulls out `category_id` on accounts via the
+      // ON DELETE SET NULL FK, so refresh accounts too.
+      await refreshAccounts();
+      if (editing === id) cancelEdit();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't delete.");
+    }
   }
 
   return (
@@ -112,7 +119,7 @@ export function CategoriesSheet({
       open={open}
       onClose={onClose}
       title="Categories"
-      description="Categories are workspace-wide. Colour shows on avatar dots, charts and badges."
+      description="Project-scoped. Colour drives the dots on avatars, charts and chips."
       footer={
         <>
           <button
@@ -133,9 +140,14 @@ export function CategoriesSheet({
         </>
       }
     >
+      {categories.length === 0 && !creating && (
+        <p className="mb-3 rounded-sm border border-dashed border-line-2 px-3 py-4 text-center t-small text-ink-3">
+          No categories yet. Add one or create them inline when adding an account.
+        </p>
+      )}
+
       <ul className="flex flex-col gap-2">
-        {rows.map((r) => {
-          const palette = PALETTE.find((p) => p.id === r.paletteId)!;
+        {categories.map((r) => {
           if (editing === r.id) {
             return (
               <li key={r.id}>
@@ -150,6 +162,7 @@ export function CategoriesSheet({
               </li>
             );
           }
+          const count = countsById[r.id] ?? 0;
           return (
             <li
               key={r.id}
@@ -157,10 +170,10 @@ export function CategoriesSheet({
             >
               <span
                 aria-hidden
-                className={`inline-block h-3.5 w-3.5 shrink-0 rounded-full ring-2 ring-bg ${palette.dot}`}
+                className={`inline-block h-3.5 w-3.5 shrink-0 rounded-full ring-2 ring-bg ${paletteDot(r.palette_id)}`}
               />
               <span className="min-w-0 flex-1">
-                <span className="block t-body font-semibold text-ink">
+                <span className="block t-body font-semibold text-ink truncate">
                   {r.label}
                 </span>
                 <span
@@ -168,7 +181,7 @@ export function CategoriesSheet({
                   className="block t-meta text-ink-3"
                   style={{ fontSize: 10 }}
                 >
-                  {r.count} {r.count === 1 ? "account" : "accounts"}
+                  {count} {count === 1 ? "account" : "accounts"}
                 </span>
               </span>
               <div className="flex shrink-0 items-center gap-1">
@@ -207,10 +220,14 @@ export function CategoriesSheet({
         )}
       </ul>
 
-      <p className="mt-4 rounded-sm border border-accent-line bg-accent-soft px-3 py-2 t-small text-accent">
-        Preview only. Category edits persist for this session but reset on
-        reload until the DB layer is wired up.
-      </p>
+      {error && (
+        <p
+          className="mt-3 rounded-sm border border-bad bg-bad-soft px-3 py-2 t-small text-bad"
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
     </Sheet>
   );
 }
@@ -224,9 +241,9 @@ function EditorCard({
   onCancel,
 }: {
   name: string;
-  paletteId: Category;
+  paletteId: string;
   onName: (v: string) => void;
-  onPalette: (id: Category) => void;
+  onPalette: (id: string) => void;
   onSave: () => void;
   onCancel: () => void;
 }) {
@@ -294,8 +311,8 @@ function EditorCard({
   );
 }
 
-function unusedPaletteId(rows: CategoryRow[]): Category {
-  const used = new Set(rows.map((r) => r.paletteId));
+function unusedPaletteId(rows: CategoryRow[]): string {
+  const used = new Set(rows.map((r) => r.palette_id));
   const free = PALETTE.find((p) => !used.has(p.id));
-  return free ? free.id : "fashion";
+  return free ? free.id : PALETTE[0].id;
 }

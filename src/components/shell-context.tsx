@@ -13,10 +13,12 @@ import { listProjects } from "@/lib/data/projects";
 import { listCategories } from "@/lib/data/categories";
 import { listAccounts } from "@/lib/data/accounts";
 import { listTags } from "@/lib/data/tags";
+import { listReports } from "@/lib/data/reports";
 import type {
   AccountView,
   CategoryRow,
   ProjectRow,
+  ReportRow,
   TagRow,
 } from "@/lib/data/types";
 
@@ -44,6 +46,8 @@ type ShellContextValue = {
   tagsLoading: boolean;
   accounts: AccountView[];
   accountsLoading: boolean;
+  reports: ReportRow[];
+  reportsLoading: boolean;
   openDrawer: () => void;
   closeDrawer: () => void;
   openSheet: (s: SheetState) => void;
@@ -53,6 +57,7 @@ type ShellContextValue = {
   refreshCategories: () => Promise<void>;
   refreshTags: () => Promise<void>;
   refreshAccounts: () => Promise<void>;
+  refreshReports: () => Promise<void>;
 };
 
 const ShellContext = createContext<ShellContextValue | null>(null);
@@ -68,6 +73,8 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
   const [tagsLoading, setTagsLoading] = useState(true);
   const [accounts, setAccounts] = useState<AccountView[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
+  const [reports, setReports] = useState<ReportRow[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(true);
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(
     null,
   );
@@ -214,6 +221,30 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
     await loadAccounts(activeProjectId, { silent: true });
   }, [loadAccounts, activeProjectId]);
 
+  const loadReports = useCallback(
+    async (projectId: string | null, opts: { silent?: boolean } = {}) => {
+      if (!projectId) {
+        setReports([]);
+        setReportsLoading(false);
+        return;
+      }
+      if (!opts.silent) setReportsLoading(true);
+      try {
+        const rows = await listReports(projectId);
+        setReports(rows);
+      } catch {
+        setReports([]);
+      } finally {
+        setReportsLoading(false);
+      }
+    },
+    [],
+  );
+
+  const refreshReports = useCallback(async () => {
+    await loadReports(activeProjectId, { silent: true });
+  }, [loadReports, activeProjectId]);
+
   // Reload per-project data whenever the active project changes. Not
   // silent — the project switch genuinely invalidates the existing
   // lists, so users should see a skeleton during the fetch.
@@ -222,7 +253,14 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
     loadCategories(activeProjectId);
     loadTags(activeProjectId);
     loadAccounts(activeProjectId);
-  }, [activeProjectId, loadCategories, loadTags, loadAccounts]);
+    loadReports(activeProjectId);
+  }, [
+    activeProjectId,
+    loadCategories,
+    loadTags,
+    loadAccounts,
+    loadReports,
+  ]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
@@ -243,6 +281,8 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       tagsLoading,
       accounts,
       accountsLoading,
+      reports,
+      reportsLoading,
       openDrawer,
       closeDrawer,
       openSheet,
@@ -252,6 +292,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       refreshCategories,
       refreshTags,
       refreshAccounts,
+      refreshReports,
     }),
     [
       drawerOpen,
@@ -265,6 +306,8 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       tagsLoading,
       accounts,
       accountsLoading,
+      reports,
+      reportsLoading,
       openDrawer,
       closeDrawer,
       openSheet,
@@ -274,6 +317,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       refreshCategories,
       refreshTags,
       refreshAccounts,
+      refreshReports,
     ],
   );
 

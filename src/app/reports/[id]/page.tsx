@@ -1,6 +1,4 @@
-import { notFound } from "next/navigation";
 import { ReportDetail } from "@/components/report-detail";
-import { accountsForReport, findReport } from "@/lib/placeholder-data";
 
 export default async function ReportDetailPage({
   params,
@@ -8,9 +6,7 @@ export default async function ReportDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const report = findReport(id);
-  if (!report) notFound();
-  const accounts = accountsForReport(report);
-
-  return <ReportDetail report={report} accounts={accounts} />;
+  // ReportDetail is a client component that fetches the row itself
+  // (RLS-gated via the browser client) and renders 404 if missing.
+  return <ReportDetail reportId={id} />;
 }

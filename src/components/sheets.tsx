@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { Sheet } from "@/components/sheet";
 import { useShell } from "@/components/shell-context";
-import { createAccount, parseTikTokHandle } from "@/lib/data/accounts";
+import {
+  createAccount,
+  parseTikTokHandle,
+  triggerAccountScrape,
+} from "@/lib/data/accounts";
 
 const NEW_CATEGORY_OPTION = "__new__";
 
@@ -95,18 +99,21 @@ export function AddAccountSheet({
       // Fire-and-forget 7-day backfill scrape. The sheet has already
       // closed; when the Apify call resolves, refreshAccounts() runs
       // again and the row picks up `last_scraped_at` + the new posts.
-      // Failures are swallowed — the next daily cron run will catch
-      // up. We don't await this so the UX stays snappy.
-      void fetch("/api/scrape/tiktok-account", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          accountId: account.id,
-          windowHours: 24 * 7,
-        }),
-      })
-        .then(() => refreshAccounts())
-        .catch(() => {});
+      // Results (success + failure both) are logged to the console so
+      // dev tools surface them — the next daily cron run also catches
+      // anything missed.
+      void triggerAccountScrape(account.id, 24 * 7).then((result) => {
+        if (result.ok) {
+          console.info(
+            `[scrape] ${account.handle}: scanned ${result.scanned}, wrote ${result.written}`,
+          );
+        } else {
+          console.error(
+            `[scrape] ${account.handle} failed (${result.status}): ${result.error}`,
+          );
+        }
+        void refreshAccounts();
+      });
     } catch (err) {
       setStatus("error");
       setErrorMessage(

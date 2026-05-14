@@ -2,17 +2,25 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getAccount } from "@/lib/data/accounts";
+import { getAccount, triggerAccountScrape } from "@/lib/data/accounts";
 import { paletteBg } from "@/lib/data/palette";
 import { relativeDate } from "@/lib/format";
 import { SkeletonAccountDetail } from "@/components/skeletons";
+import { useShell } from "@/components/shell-context";
 import type { AccountView } from "@/lib/data/types";
 
 export function AccountDetail({ accountId }: { accountId: string }) {
+  const { refreshAccounts } = useShell();
   const [account, setAccount] = useState<AccountView | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "missing">(
     "loading",
   );
+  const [scrapeState, setScrapeState] = useState<
+    | { kind: "idle" }
+    | { kind: "scraping" }
+    | { kind: "done"; scanned: number; written: number }
+    | { kind: "error"; message: string }
+  >({ kind: "idle" });
 
   useEffect(() => {
     let cancelled = false;
@@ -33,6 +41,24 @@ export function AccountDetail({ accountId }: { accountId: string }) {
       cancelled = true;
     };
   }, [accountId]);
+
+  async function rescan() {
+    setScrapeState({ kind: "scraping" });
+    const result = await triggerAccountScrape(accountId, 24 * 7);
+    if (result.ok) {
+      setScrapeState({
+        kind: "done",
+        scanned: result.scanned,
+        written: result.written,
+      });
+      // Re-pull the account so last_scraped_at picks up.
+      const fresh = await getAccount(accountId);
+      if (fresh) setAccount(fresh);
+      await refreshAccounts();
+    } else {
+      setScrapeState({ kind: "error", message: result.error });
+    }
+  }
 
   if (status === "loading") {
     return <SkeletonAccountDetail />;
@@ -76,10 +102,12 @@ export function AccountDetail({ accountId }: { accountId: string }) {
           />
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="t-display-3 uppercase text-ink">
+          <h1 className="t-display-3 truncate uppercase text-ink">
             {account.display_name ?? account.handle.replace(/^@/, "")}
           </h1>
-          <div className="mt-0.5 t-body text-ink-3">{account.handle}</div>
+          <div className="mt-0.5 t-body truncate text-ink-3">
+            {account.handle}
+          </div>
         </div>
       </section>
 
@@ -126,11 +154,33 @@ export function AccountDetail({ accountId }: { accountId: string }) {
       </section>
 
       <section className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-6 text-center">
-        <h2 className="t-h2 text-ink">No scrape data yet</h2>
-        <p className="mx-auto mt-2 max-w-[32ch] t-small text-ink-2">
-          Per-post metrics and the trend charts appear after the next daily
-          scrape (08:00 UTC).
+        <h2 className="t-h2 text-ink">
+          {account.last_scraped_at ? "Last scrape" : "No scrape data yet"}
+        </h2>
+        <p className="mx-auto mt-2 max-w-[36ch] t-small text-ink-2">
+          {account.last_scraped_at
+            ? `Most recent run ${relativeDate(account.last_scraped_at)}. Per-post charts land in a later round.`
+            : "Per-post metrics appear after the first successful scrape. Trigger one now or wait for the 08:00 UTC daily run."}
         </p>
+        <button
+          type="button"
+          onClick={rescan}
+          disabled={scrapeState.kind === "scraping"}
+          className="tap-btn mt-4 inline-flex items-center gap-2 rounded-sm border border-line-2 bg-surface-2 px-4 py-2 t-small font-medium text-ink hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {scrapeState.kind === "scraping" ? "Scraping…" : "Rescan now"}
+        </button>
+        {scrapeState.kind === "done" && (
+          <p className="mt-3 t-small text-good">
+            Scanned {scrapeState.scanned}, wrote {scrapeState.written} post
+            {scrapeState.written === 1 ? "" : "s"}.
+          </p>
+        )}
+        {scrapeState.kind === "error" && (
+          <p className="mt-3 t-small text-bad" role="alert">
+            {scrapeState.message}
+          </p>
+        )}
       </section>
     </>
   );

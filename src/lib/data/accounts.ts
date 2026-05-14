@@ -133,3 +133,64 @@ export async function createAccount(input: {
   if (!view) throw new Error("Account created but could not be re-read");
   return view;
 }
+
+export async function updateAccount(
+  id: string,
+  patch: { category_id?: string | null },
+): Promise<void> {
+  const supabase = supabaseBrowser();
+  const { error } = await supabase
+    .from("accounts")
+    .update(patch)
+    .eq("id", id);
+  if (error) throw error;
+}
+
+// Kick the server-side scrape route for a single account. The route
+// runs Apify and upserts posts. Returns either the summary
+// (`{ scanned, written, windowHours }`) on success, or an error
+// string. Used by AddAccountSheet's fire-and-forget backfill and the
+// "Rescan" button on AccountDetail.
+export type ScrapeResult =
+  | { ok: true; scanned: number; written: number; windowHours: number }
+  | { ok: false; error: string; status: number };
+
+export async function triggerAccountScrape(
+  accountId: string,
+  windowHours: number = 48,
+): Promise<ScrapeResult> {
+  try {
+    const res = await fetch("/api/scrape/tiktok-account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accountId, windowHours }),
+    });
+    const body = (await res
+      .json()
+      .catch(() => ({}))) as Partial<ScrapeResult> & {
+      scanned?: number;
+      written?: number;
+      error?: string;
+      windowHours?: number;
+    };
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: body.error ?? `Scrape failed (${res.status})`,
+        status: res.status,
+      };
+    }
+    return {
+      ok: true,
+      scanned: body.scanned ?? 0,
+      written: body.written ?? 0,
+      windowHours: body.windowHours ?? windowHours,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Network error",
+      status: 0,
+    };
+  }
+}

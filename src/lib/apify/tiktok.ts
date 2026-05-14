@@ -29,20 +29,27 @@ export type ApifyTikTokPost = {
   shareCount?: number;
   collectCount?: number;
   saveCount?: number;
-  authorMeta?: { fans?: number; name?: string };
+  authorMeta?: {
+    fans?: number;
+    name?: string;
+    uniqueId?: string;
+    nickName?: string;
+  };
   [key: string]: unknown;
 };
 
 export type ScrapeOptions = {
-  url: string;
+  urls: string[];
   maxItems?: number;
+  timeoutMs?: number;
 };
 
-export async function scrapeTikTokUrl(
+export async function scrapeTikTokUrls(
   opts: ScrapeOptions,
 ): Promise<ApifyTikTokPost[]> {
   const token = process.env.APIFY_API_KEY;
   if (!token) throw new Error("APIFY_API_KEY is not set");
+  if (opts.urls.length === 0) return [];
 
   const url = new URL(APIFY_ENDPOINT);
   url.searchParams.set("token", token);
@@ -51,12 +58,14 @@ export async function scrapeTikTokUrl(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      startUrls: [opts.url],
-      maxItems: opts.maxItems ?? 50,
+      startUrls: opts.urls,
+      maxItems: opts.maxItems ?? 50 * opts.urls.length,
     }),
     // Apify sync calls are long-running; let Vercel hold the connection
-    // for up to the route's maxDuration.
-    signal: AbortSignal.timeout?.(55_000) ?? undefined,
+    // for up to the caller-provided timeout (default ~55s for the
+    // 60s per-account route).
+    signal:
+      AbortSignal.timeout?.(opts.timeoutMs ?? 55_000) ?? undefined,
   });
 
   if (!res.ok) {
@@ -66,6 +75,30 @@ export async function scrapeTikTokUrl(
 
   const data = (await res.json()) as ApifyTikTokPost[];
   return Array.isArray(data) ? data : [];
+}
+
+// Single-URL convenience wrapper used by /api/scrape/tiktok-account.
+export async function scrapeTikTokUrl(opts: {
+  url: string;
+  maxItems?: number;
+}): Promise<ApifyTikTokPost[]> {
+  return scrapeTikTokUrls({
+    urls: [opts.url],
+    maxItems: opts.maxItems,
+  });
+}
+
+// Pluck the TikTok handle from a post payload. Apify varies the field
+// between actor versions — try the common ones in priority order and
+// return a lowercase handle without the leading `@`.
+export function postHandle(p: ApifyTikTokPost): string | null {
+  const raw =
+    p.authorMeta?.uniqueId ??
+    p.authorMeta?.name ??
+    p.authorMeta?.nickName ??
+    null;
+  if (!raw) return null;
+  return raw.toLowerCase().replace(/^@/, "");
 }
 
 // Map an Apify post to the columns of the `posts` table. Returns null

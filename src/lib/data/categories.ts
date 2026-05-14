@@ -72,3 +72,41 @@ export async function ensureCategory(
   if (error) throw error;
   return data as CategoryRow;
 }
+
+export async function createCategory(
+  projectId: string,
+  label: string,
+  palette_id: string,
+): Promise<CategoryRow> {
+  const trimmed = label.trim();
+  if (!trimmed) throw new Error("Category label cannot be empty");
+  const supabase = supabaseBrowser();
+  const { data, error } = await supabase
+    .from("categories")
+    .insert({ project_id: projectId, label: trimmed, palette_id })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CategoryRow;
+}
+
+export async function updateCategory(
+  id: string,
+  patch: { label?: string; palette_id?: string },
+): Promise<void> {
+  const supabase = supabaseBrowser();
+  const next: Record<string, string> = {};
+  if (patch.label !== undefined) next.label = patch.label.trim();
+  if (patch.palette_id !== undefined) next.palette_id = patch.palette_id;
+  const { error } = await supabase
+    .from("categories")
+    .update(next)
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteCategory(id: string): Promise<void> {
+  const supabase = supabaseBrowser();
+  const { error } = await supabase.from("categories").delete().eq("id", id);
+  if (error) throw error;
+}

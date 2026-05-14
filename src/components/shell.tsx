@@ -18,13 +18,13 @@ import { CategoriesSheet } from "@/components/sheets/categories-sheet";
 import { TagsSheet } from "@/components/sheets/tags-sheet";
 import { EditAccountSheet } from "@/components/sheets/edit-account-sheet";
 import { NewProjectSheet } from "@/components/sheets/new-project-sheet";
-import { findReport } from "@/lib/placeholder-data";
-import type { AccountView } from "@/lib/data/types";
+import type { AccountView, ReportRow } from "@/lib/data/types";
 
 function headerFor(
   pathname: string,
   activeProjectName: string,
   accounts: AccountView[],
+  reports: ReportRow[],
 ) {
   if (pathname === "/" || pathname.startsWith("/dashboard")) {
     return {
@@ -44,9 +44,8 @@ function headerFor(
   }
   if (pathname.startsWith("/accounts")) return { title: "Accounts" };
   if (pathname.startsWith("/reports/")) {
-    // Reports still read from placeholder data — wired in M-3b.2.
     const id = pathname.split("/")[2];
-    const report = id ? findReport(id) : null;
+    const report = id ? reports.find((r) => r.id === id) : null;
     return {
       eyebrow: "Reports",
       title: report?.name ?? "Report",
@@ -68,7 +67,14 @@ const PROJECTS_ROUTE = /^\/projects(\/|$)/;
 function FrameInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { sheet, closeSheet, accounts, projects, projectsLoading } = useShell();
+  const {
+    sheet,
+    closeSheet,
+    accounts,
+    reports,
+    projects,
+    projectsLoading,
+  } = useShell();
   const activeProject = useActiveProject();
 
   const onBareRoute =
@@ -94,6 +100,7 @@ function FrameInner({ children }: { children: React.ReactNode }) {
     pathname,
     activeProject?.name ?? "Workspace",
     accounts,
+    reports,
   );
 
   return (
