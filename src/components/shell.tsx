@@ -49,10 +49,19 @@ function headerFor(pathname: string) {
   return { title: "Alert Network" };
 }
 
+// Routes that render bare — no shell frame, no header, no nav, no FAB.
+// Used for shareable views that need to look standalone (and print clean).
+const VIEW_ONLY = /^\/reports\/[^/]+\/view(\/|$)/;
+
 function FrameInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const head = headerFor(pathname);
   const { sheet, closeSheet } = useShell();
+
+  if (VIEW_ONLY.test(pathname)) {
+    return <>{children}</>;
+  }
+
+  const head = headerFor(pathname);
 
   return (
     <div
