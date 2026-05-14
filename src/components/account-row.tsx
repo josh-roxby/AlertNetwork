@@ -1,19 +1,32 @@
 import Link from "next/link";
-import { relativeDate } from "@/lib/format";
+import { useShell } from "@/components/shell-context";
+import { compactNumber, percent, relativeDate } from "@/lib/format";
 import { paletteBg } from "@/lib/data/palette";
-import type { AccountView } from "@/lib/data/types";
+import {
+  BAND_TONE,
+  computeAccountHealth,
+} from "@/lib/data/health";
+import type { AccountView, PostRow } from "@/lib/data/types";
 
-// Account list row. Until the scrape pipeline populates `posts` (N-1
-// → N-3), per-account metrics (median views, engagement, health) are
-// unknown — the row degrades to a "first scrape pending" status line.
+// Width-pinned to keep the right column from squeezing the metric
+// copy. Mirrors the legacy AccountRow layout (avatar + 2-line meta +
+// health column).
+const HEALTH_COL_MIN_WIDTH = 56;
+const TREND_WINDOW = "WoW";
 
 export function AccountRow({ account }: { account: AccountView }) {
+  const { postsByAccount } = useShell();
+  const posts = postsByAccount.get(account.id) ?? ([] as PostRow[]);
+  const health = computeAccountHealth(posts);
+  const hasPosts = posts.length > 0;
+
   const initial =
     account.handle.replace(/^@/, "").charAt(0).toUpperCase() || "?";
   const palette = paletteBg(account.category?.palette_id);
   const categoryLabel = account.category?.label ?? "Uncategorised";
-  const lastScraped = account.last_scraped_at;
-  const tagLabels = account.tagLabels.slice(0, 3);
+  const tagLabels = account.tagLabels.slice(0, 2);
+  const trendUp = health.trendDelta >= 0;
+  const tone = BAND_TONE[health.band];
 
   return (
     <Link
@@ -41,26 +54,99 @@ export function AccountRow({ account }: { account: AccountView }) {
           data-numeric
           className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0 text-[10px] text-ink-3"
         >
-          <span>{categoryLabel}</span>
-          {tagLabels.length > 0 && (
+          {hasPosts ? (
             <>
+              <Metric prefix="Med" value={compactNumber(health.medianViews)} />
+              <Sep />
+              <Metric prefix="Tot" value={compactNumber(health.totalViews)} />
+              <Sep />
+              <Metric
+                prefix="ER"
+                value={percent(health.engagementRate, 1)}
+              />
+              <Sep />
+              <span className="truncate">{categoryLabel}</span>
+              {tagLabels.length > 0 && (
+                <>
+                  <Sep />
+                  <span className="truncate">
+                    {tagLabels.map((t) => `#${t}`).join(" ")}
+                  </span>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="truncate">{categoryLabel}</span>
+              {tagLabels.length > 0 && (
+                <>
+                  <Sep />
+                  <span className="truncate">
+                    {tagLabels.map((t) => `#${t}`).join(" ")}
+                  </span>
+                </>
+              )}
               <Sep />
               <span>
-                {tagLabels.map((t) => `#${t}`).join(" · ")}
-                {account.tagLabels.length > tagLabels.length &&
-                  ` +${account.tagLabels.length - tagLabels.length}`}
+                {account.last_scraped_at
+                  ? `Scraped ${relativeDate(account.last_scraped_at)}`
+                  : "First scrape pending"}
               </span>
             </>
           )}
-          <Sep />
-          <span>
-            {lastScraped
-              ? `Scraped ${relativeDate(lastScraped)}`
-              : "First scrape pending"}
-          </span>
         </span>
       </span>
+
+      <span
+        className="flex shrink-0 flex-col items-end"
+        style={{ minWidth: HEALTH_COL_MIN_WIDTH }}
+      >
+        {hasPosts ? (
+          <>
+            <span
+              data-numeric
+              className={`t-display-3 leading-none ${tone}`}
+            >
+              {health.healthScore}
+            </span>
+            <span
+              className={`mt-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                trendUp ? "bg-good-soft text-good" : "bg-bad-soft text-bad"
+              }`}
+            >
+              <span data-numeric>
+                {trendUp ? "↑" : "↓"}
+                {Math.abs(health.trendDelta).toFixed(1)}
+              </span>
+              <span
+                className="opacity-70"
+                style={{ fontSize: 8, fontWeight: 600, letterSpacing: "0.05em" }}
+              >
+                {TREND_WINDOW}
+              </span>
+            </span>
+          </>
+        ) : (
+          <span
+            className="t-meta text-ink-3"
+            style={{ fontSize: 10, letterSpacing: "0.08em" }}
+          >
+            NO DATA
+          </span>
+        )}
+      </span>
     </Link>
+  );
+}
+
+function Metric({ prefix, value }: { prefix: string; value: string }) {
+  return (
+    <span className="inline-flex items-baseline gap-0.5">
+      <span className="text-ink-4" style={{ fontWeight: 600 }}>
+        {prefix}
+      </span>
+      <span className="text-ink-2">{value}</span>
+    </span>
   );
 }
 

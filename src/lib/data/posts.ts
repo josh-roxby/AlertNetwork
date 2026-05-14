@@ -97,6 +97,38 @@ export async function listPostsForAccount(
   return (data ?? []) as PostRow[];
 }
 
+// Pulls every post for every account in a project. Used by
+// ShellContext to compute per-account health scores client-side
+// without N+1 round-trips. We deliberately exclude the heavy `raw`
+// jsonb column to keep the payload small (~100B per row).
+export async function listPostsForProject(
+  projectId: string,
+  opts: { sinceHours?: number; limit?: number } = {},
+): Promise<PostRow[]> {
+  const supabase = supabaseBrowser();
+  let query = supabase
+    .from("posts")
+    .select(
+      "id, account_id, platform_post_id, posted_at, url, caption, views, likes, comments, shares, saves, first_seen_at, last_scraped_at, updated_at, accounts!inner(project_id)",
+    )
+    .eq("accounts.project_id", projectId)
+    .order("posted_at", { ascending: false });
+
+  if (opts.sinceHours && Number.isFinite(opts.sinceHours)) {
+    const cutoff = new Date(
+      Date.now() - opts.sinceHours * 3600 * 1000,
+    ).toISOString();
+    query = query.gte("posted_at", cutoff);
+  }
+  if (opts.limit) {
+    query = query.limit(opts.limit);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []) as unknown as PostRow[];
+}
+
 // Compute simple aggregate stats from a posts array. Cheap enough to
 // do client-side for the volumes we care about (≤50 posts/account).
 export function accountPostStats(posts: PostRow[]): AccountPostStats {

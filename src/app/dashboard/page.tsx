@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { StatsGrid, type Stat } from "@/components/stats-grid";
 import { AccountRow } from "@/components/account-row";
 import { AddAccountTile } from "@/components/add-account-tile";
+import { Chip } from "@/components/chip";
+import { FilterStrip } from "@/components/filter-strip";
 import { FeaturedReports } from "@/components/featured-reports";
 import { IconChevronRight, IconPlus } from "@/components/icons";
 import {
@@ -13,61 +15,16 @@ import {
 } from "@/components/skeletons";
 import { useShell, useActiveProject } from "@/components/shell-context";
 import { paletteBg } from "@/lib/data/palette";
-import { supabaseBrowser } from "@/lib/supabase";
+import {
+  BAND_TONE,
+  computeAccountHealth,
+  type HealthBand,
+} from "@/lib/data/health";
 import { compactNumber, relativeDate } from "@/lib/format";
+import type { AccountView, PostRow } from "@/lib/data/types";
 
-// Lightweight project-wide post stats: how many posts in the last 30
-// days, and which account has the most total views in that window.
-// Pulled once on mount so the dashboard heading can show a top tile
-// without N+1 queries.
-type ProjectStats = {
-  postsLast30d: number;
-  viewsLast30d: number;
-  topAccountId: string | null;
-  topAccountViews: number;
-};
-
-async function loadProjectStats(projectId: string): Promise<ProjectStats> {
-  const supabase = supabaseBrowser();
-  const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-  // Inner-join `accounts` so we can filter `posts` to the active
-  // project. RLS would also exclude posts the caller doesn't own,
-  // but the explicit scope is necessary when the user has multiple
-  // projects.
-  const { data, error } = await supabase
-    .from("posts")
-    .select("account_id, views, accounts!inner(project_id)")
-    .eq("accounts.project_id", projectId)
-    .gte("posted_at", since);
-  if (error) throw error;
-
-  const byAccount = new Map<string, number>();
-  let totalViews = 0;
-  for (const row of data ?? []) {
-    const v = (row.views as number) ?? 0;
-    totalViews += v;
-    byAccount.set(
-      row.account_id as string,
-      (byAccount.get(row.account_id as string) ?? 0) + v,
-    );
-  }
-
-  let topAccountId: string | null = null;
-  let topAccountViews = 0;
-  for (const [id, views] of byAccount.entries()) {
-    if (views > topAccountViews) {
-      topAccountId = id;
-      topAccountViews = views;
-    }
-  }
-
-  return {
-    postsLast30d: data?.length ?? 0,
-    viewsLast30d: totalViews,
-    topAccountId,
-    topAccountViews,
-  };
-}
+type DashboardFilter = "all" | HealthBand | "movers";
+const MOVER_THRESHOLD = 20;
 
 export default function DashboardPage() {
   const {
@@ -76,32 +33,47 @@ export default function DashboardPage() {
     accounts,
     accountsLoading,
     reports,
+    posts,
+    postsByAccount,
     openSheet,
   } = useShell();
   const project = useActiveProject();
+  const [filter, setFilter] = useState<DashboardFilter>("all");
 
-  const [stats, setStats] = useState<ProjectStats | null>(null);
-  // Cascading setState here is intentional — we re-fetch project stats
-  // whenever the project switches or its account list grows.
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (!activeProjectId) {
-      setStats(null);
-      return;
+  // Compute per-account health once per posts change.
+  const accountHealths = useMemo(() => {
+    const map = new Map<
+      string,
+      ReturnType<typeof computeAccountHealth>
+    >();
+    for (const a of accounts) {
+      const ps = postsByAccount.get(a.id) ?? ([] as PostRow[]);
+      map.set(a.id, computeAccountHealth(ps));
     }
-    let cancelled = false;
-    loadProjectStats(activeProjectId)
-      .then((s) => {
-        if (!cancelled) setStats(s);
-      })
-      .catch(() => {
-        if (!cancelled) setStats(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeProjectId, accounts.length]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+    return map;
+  }, [accounts, postsByAccount]);
+
+  // Top by health (with views as tiebreaker). Computed unconditionally
+  // so hook order stays stable through the conditional returns below.
+  const topAccount = useMemo(() => {
+    let best: {
+      account: AccountView;
+      health: ReturnType<typeof computeAccountHealth>;
+    } | null = null;
+    for (const a of accounts) {
+      const h = accountHealths.get(a.id);
+      if (!h || h.postCount === 0) continue;
+      if (
+        !best ||
+        h.healthScore > best.health.healthScore ||
+        (h.healthScore === best.health.healthScore &&
+          h.totalViews > best.health.totalViews)
+      ) {
+        best = { account: a, health: h };
+      }
+    }
+    return best;
+  }, [accounts, accountHealths]);
 
   if (!activeProjectId) {
     return (
@@ -144,50 +116,85 @@ export default function DashboardPage() {
     );
   }
 
+  // Aggregate stats.
+  const totalViews = posts.reduce((s, p) => s + p.views, 0);
+  const healthScores = Array.from(accountHealths.values())
+    .filter((h) => h.postCount > 0)
+    .map((h) => h.healthScore);
+  const avgHealth =
+    healthScores.length > 0
+      ? Math.round(
+          healthScores.reduce((s, n) => s + n, 0) / healthScores.length,
+        )
+      : 0;
+  const moversCount = Array.from(accountHealths.values()).filter(
+    (h) => Math.abs(h.trendDelta) >= MOVER_THRESHOLD && h.postCount > 0,
+  ).length;
+  const bandCount = (band: HealthBand) =>
+    Array.from(accountHealths.values()).filter(
+      (h) => h.band === band && h.postCount > 0,
+    ).length;
+  const excellentCount = bandCount("excellent");
+  const strongCount = bandCount("strong");
+  const watchingCount = bandCount("watching");
+
   const mostRecentScrape = accounts.reduce<string | null>((latest, a) => {
     if (!a.last_scraped_at) return latest;
     if (!latest || a.last_scraped_at > latest) return a.last_scraped_at;
     return latest;
   }, null);
   const liveReports = reports.filter((r) => r.status === "active").length;
-  const topAccount = stats?.topAccountId
-    ? accounts.find((a) => a.id === stats.topAccountId) ?? null
-    : null;
 
   const grid: Stat[] = [
     { label: "Accounts", value: accounts.length.toString() },
     {
-      label: "Posts (30d)",
-      value: stats ? stats.postsLast30d.toString() : "—",
+      label: "Avg health",
+      value: healthScores.length > 0 ? avgHealth.toString() : "—",
+      trend: healthScores.length > 0
+        ? {
+            kind: "neutral",
+            label: `${healthScores.length} scored`,
+          }
+        : undefined,
+    },
+    { label: "Categories", value: categories.length.toString() },
+    { label: "Live reports", value: liveReports.toString() },
+    {
+      label: "Movers",
+      value: moversCount.toString(),
+      trend: { kind: "neutral", label: `±${MOVER_THRESHOLD}%` },
     },
     {
       label: "Views (30d)",
-      value: stats && stats.viewsLast30d > 0
-        ? compactNumber(stats.viewsLast30d)
-        : "—",
-    },
-    { label: "Categories", value: categories.length.toString() },
-    { label: "Reports", value: liveReports.toString() },
-    {
-      label: "Last scrape",
-      value: mostRecentScrape ? relativeDate(mostRecentScrape) : "Pending",
+      value: totalViews > 0 ? compactNumber(totalViews) : "—",
     },
   ];
+
+  const filtered = accounts
+    .filter((a) => matchFilter(accountHealths.get(a.id), filter))
+    .sort((a, b) => {
+      const ha = accountHealths.get(a.id)?.healthScore ?? 0;
+      const hb = accountHealths.get(b.id)?.healthScore ?? 0;
+      return hb - ha;
+    });
 
   return (
     <>
       <section className="mb-4">
         <h1 className="t-display-1 uppercase text-ink">Dashboard</h1>
         <p className="mt-1 t-small text-ink-3">
-          {project?.name ?? "Workspace"} — every account in this project.
+          {project?.name ?? "Workspace"} — live snapshot of every monitored
+          account.
         </p>
       </section>
 
       {topAccount && (
         <section className="mb-2">
-          <TopAccountTile
-            account={topAccount}
-            views={stats?.topAccountViews ?? 0}
+          <TopHealthTile
+            account={topAccount.account}
+            score={topAccount.health.healthScore}
+            trendDelta={topAccount.health.trendDelta}
+            band={topAccount.health.band}
           />
         </section>
       )}
@@ -207,10 +214,50 @@ export default function DashboardPage() {
         <FeaturedReports max={3} />
       </section>
 
+      <section className="mb-4">
+        <FilterStrip>
+          <Chip
+            active={filter === "all"}
+            count={accounts.length}
+            onClick={() => setFilter("all")}
+          >
+            All
+          </Chip>
+          <Chip
+            active={filter === "excellent"}
+            count={excellentCount}
+            onClick={() => setFilter("excellent")}
+          >
+            Excellent
+          </Chip>
+          <Chip
+            active={filter === "strong"}
+            count={strongCount}
+            onClick={() => setFilter("strong")}
+          >
+            Strong
+          </Chip>
+          <Chip
+            active={filter === "watching"}
+            count={watchingCount}
+            onClick={() => setFilter("watching")}
+          >
+            Watching
+          </Chip>
+          <Chip
+            active={filter === "movers"}
+            count={moversCount}
+            onClick={() => setFilter("movers")}
+          >
+            Movers
+          </Chip>
+        </FilterStrip>
+      </section>
+
       <section>
         <div className="mb-2 flex items-center justify-between px-1">
           <span data-numeric className="t-small text-ink-2">
-            {accounts.length} account{accounts.length === 1 ? "" : "s"}
+            {filtered.length} of {accounts.length}
           </span>
           <Link
             href="/accounts"
@@ -219,32 +266,62 @@ export default function DashboardPage() {
             See all →
           </Link>
         </div>
-        <ul className="flex flex-col gap-2">
-          {accounts.slice(0, 8).map((a) => (
-            <li key={a.id}>
-              <AccountRow account={a} />
+        {filtered.length === 0 ? (
+          <div className="rounded-md border border-line bg-surface px-3 py-6 text-center">
+            <p className="t-body text-ink-2">No accounts match this filter.</p>
+            <button
+              type="button"
+              onClick={() => setFilter("all")}
+              className="tap-btn mt-2 t-micro text-accent hover:opacity-80"
+            >
+              Reset filter
+            </button>
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {filtered.map((a) => (
+              <li key={a.id}>
+                <AccountRow account={a} />
+              </li>
+            ))}
+            <li>
+              <AddAccountTile />
             </li>
-          ))}
-          <li>
-            <AddAccountTile />
-          </li>
-        </ul>
+          </ul>
+        )}
       </section>
+
+      {mostRecentScrape && (
+        <p className="mt-4 t-micro text-ink-4" style={{ fontSize: 10 }}>
+          Last project scrape · {relativeDate(mostRecentScrape)}
+        </p>
+      )}
     </>
   );
 }
 
-function TopAccountTile({
+function matchFilter(
+  health: ReturnType<typeof computeAccountHealth> | undefined,
+  filter: DashboardFilter,
+): boolean {
+  if (filter === "all") return true;
+  if (!health || health.postCount === 0) return false;
+  if (filter === "movers") return Math.abs(health.trendDelta) >= MOVER_THRESHOLD;
+  return health.band === filter;
+}
+
+function TopHealthTile({
   account,
-  views,
+  score,
+  trendDelta,
+  band,
 }: {
-  account: {
-    id: string;
-    handle: string;
-    category: { palette_id: string; label: string } | null;
-  };
-  views: number;
+  account: AccountView;
+  score: number;
+  trendDelta: number;
+  band: HealthBand;
 }) {
+  const trendUp = trendDelta >= 0;
   const paletteClass = paletteBg(account.category?.palette_id);
   return (
     <Link
@@ -253,19 +330,28 @@ function TopAccountTile({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="t-micro text-ink-3">Top by views (30d)</div>
+          <div className="t-micro text-ink-3">Top health</div>
           <div className="mt-1 flex items-baseline gap-2">
             <span
               data-numeric
-              className="leading-none text-ink"
+              className={`leading-none ${BAND_TONE[band]}`}
               style={{
                 fontFamily: "var(--font-unbounded)",
                 fontWeight: 800,
-                fontSize: 36,
+                fontSize: 44,
                 letterSpacing: "-0.015em",
               }}
             >
-              {compactNumber(views)}
+              {score}
+            </span>
+            <span
+              data-numeric
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                trendUp ? "bg-good-soft text-good" : "bg-bad-soft text-bad"
+              }`}
+            >
+              {trendUp ? "↑" : "↓"}
+              {Math.abs(trendDelta).toFixed(1)}
             </span>
           </div>
           <div className="mt-1 flex items-center gap-1.5 t-small text-ink">
@@ -291,6 +377,13 @@ function TopAccountTile({
           <IconChevronRight />
         </span>
       </div>
+      <span
+        aria-hidden
+        className="mt-3 inline-flex items-center gap-1 t-meta text-accent"
+        style={{ fontSize: 10, letterSpacing: "0.14em" }}
+      >
+        View account →
+      </span>
     </Link>
   );
 }

@@ -3,19 +3,22 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { getAccount, triggerAccountScrape } from "@/lib/data/accounts";
-import {
-  accountPostStats,
-  listPostsForAccount,
-} from "@/lib/data/posts";
+import { listPostsForAccount } from "@/lib/data/posts";
 import { paletteBg } from "@/lib/data/palette";
-import { compactNumber, relativeDate } from "@/lib/format";
+import {
+  BAND_BG,
+  BAND_LABEL,
+  BAND_TONE,
+  computeAccountHealth,
+} from "@/lib/data/health";
+import { compactNumber, percent, relativeDate } from "@/lib/format";
 import { SkeletonAccountDetail } from "@/components/skeletons";
 import { useShell } from "@/components/shell-context";
 import { IconChevronRight } from "@/components/icons";
 import type { AccountView, PostRow } from "@/lib/data/types";
 
 export function AccountDetail({ accountId }: { accountId: string }) {
-  const { refreshAccounts, openSheet } = useShell();
+  const { refreshAccounts, refreshPosts, openSheet } = useShell();
   const [account, setAccount] = useState<AccountView | null>(null);
   const [posts, setPosts] = useState<PostRow[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "missing">(
@@ -61,7 +64,9 @@ export function AccountDetail({ accountId }: { accountId: string }) {
 
   async function rescan() {
     setScrapeState({ kind: "scraping" });
-    const result = await triggerAccountScrape(accountId, 24 * 7);
+    // 0 = no time filter; write every post Apify returns. Same as
+    // AddAccountSheet's initial backfill.
+    const result = await triggerAccountScrape(accountId, 0);
     if (result.ok) {
       setScrapeState({
         kind: "done",
@@ -70,6 +75,7 @@ export function AccountDetail({ accountId }: { accountId: string }) {
       });
       await reload();
       await refreshAccounts();
+      await refreshPosts();
     } else {
       setScrapeState({ kind: "error", message: result.error });
     }
@@ -93,7 +99,9 @@ export function AccountDetail({ accountId }: { accountId: string }) {
     );
   }
 
-  const stats = accountPostStats(posts);
+  const health = computeAccountHealth(posts);
+  const hasPosts = posts.length > 0;
+  const trendUp = health.trendDelta >= 0;
   const paletteClass = paletteBg(account.category?.palette_id);
   const initial =
     account.handle.replace(/^@/, "").charAt(0).toUpperCase() || "?";
@@ -144,23 +152,46 @@ export function AccountDetail({ accountId }: { accountId: string }) {
           />
           {account.category?.label ?? "Uncategorised"}
         </Chip>
+        {hasPosts && (
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ${BAND_BG[health.band]}`}
+            style={{ fontSize: 11, fontWeight: 600 }}
+          >
+            {BAND_LABEL[health.band]}
+          </span>
+        )}
         {account.tagLabels.map((t) => (
           <Chip key={t}>#{t}</Chip>
         ))}
       </section>
 
+      {hasPosts && (
+        <section className="mb-5 grid grid-cols-2 gap-2">
+          <HealthCell health={health.healthScore} band={health.band} />
+          <TrendCell delta={health.trendDelta} up={trendUp} />
+        </section>
+      )}
+
       <section className="mb-5 grid grid-cols-2 gap-2">
         <StatCell
-          label="Posts"
-          value={stats.postCount > 0 ? stats.postCount.toString() : "—"}
+          label="Posts (30d)"
+          value={hasPosts ? health.postCount.toString() : "—"}
         />
         <StatCell
           label="Total views"
-          value={stats.totalViews > 0 ? compactNumber(stats.totalViews) : "—"}
+          value={hasPosts ? compactNumber(health.totalViews) : "—"}
         />
         <StatCell
           label="Median views"
-          value={stats.medianViews > 0 ? compactNumber(stats.medianViews) : "—"}
+          value={hasPosts ? compactNumber(health.medianViews) : "—"}
+        />
+        <StatCell
+          label="Engagement"
+          value={hasPosts ? percent(health.engagementRate, 1) : "—"}
+        />
+        <StatCell
+          label="Posts / week"
+          value={hasPosts ? health.postsPerWeek.toFixed(1) : "—"}
         />
         <StatCell
           label="Last scrape"
@@ -278,6 +309,65 @@ function PostRowCard({ post }: { post: PostRow }) {
     </a>
   ) : (
     inner
+  );
+}
+
+function HealthCell({
+  health,
+  band,
+}: {
+  health: number;
+  band: keyof typeof BAND_TONE;
+}) {
+  return (
+    <div className="rounded-md border border-line bg-surface px-3 py-3">
+      <div className="t-micro text-ink-3">Health</div>
+      <div className="mt-1 flex items-baseline gap-2">
+        <span
+          data-numeric
+          className={`leading-none ${BAND_TONE[band]}`}
+          style={{
+            fontFamily: "var(--font-unbounded)",
+            fontWeight: 800,
+            fontSize: 32,
+            letterSpacing: "-0.015em",
+          }}
+        >
+          {health}
+        </span>
+        <span
+          className={`inline-flex items-center rounded-full px-1.5 py-0.5 ${BAND_BG[band]}`}
+          style={{ fontSize: 10, fontWeight: 600 }}
+        >
+          {BAND_LABEL[band]}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function TrendCell({ delta, up }: { delta: number; up: boolean }) {
+  return (
+    <div className="rounded-md border border-line bg-surface px-3 py-3">
+      <div className="t-micro text-ink-3">Trend WoW</div>
+      <div className="mt-1 flex items-baseline gap-2">
+        <span
+          data-numeric
+          className={`leading-none ${up ? "text-good" : "text-bad"}`}
+          style={{
+            fontFamily: "var(--font-unbounded)",
+            fontWeight: 800,
+            fontSize: 32,
+            letterSpacing: "-0.015em",
+          }}
+        >
+          {up ? "↑" : "↓"}
+          {Math.abs(delta).toFixed(1)}
+          <span style={{ fontSize: 18 }}>%</span>
+        </span>
+      </div>
+      <div className="mt-0.5 t-micro text-ink-3">vs prior 7 days · median</div>
+    </div>
   );
 }
 
