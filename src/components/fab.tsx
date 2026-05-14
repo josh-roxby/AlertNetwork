@@ -17,9 +17,14 @@ type FabSpec =
   | { kind: "link"; href: string; target: "_blank"; label: string; icon: "eye" }
   | { kind: "none" };
 
-function fabForPath(pathname: string): FabSpec {
+function fabForPath(pathname: string, surface: "mobile" | "desktop"): FabSpec {
   if (pathname === "/" || pathname.startsWith("/dashboard")) {
-    return { kind: "drawer", label: "Open project drawer" };
+    // Mobile dashboard FAB opens the project drawer. Desktop has no drawer
+    // (project switcher lives in the topbar), so the primary action becomes
+    // "add account".
+    return surface === "desktop"
+      ? { kind: "sheet", sheet: "addAccount", label: "Add account" }
+      : { kind: "drawer", label: "Open project drawer" };
   }
   if (pathname.startsWith("/accounts/")) {
     return { kind: "none" };
@@ -50,14 +55,26 @@ function fabForPath(pathname: string): FabSpec {
   return { kind: "none" };
 }
 
-const className =
+const mobileClassName =
   "tap-fab absolute z-[var(--z-fab)] inline-flex h-[46px] w-[46px] items-center justify-center rounded-xs bg-accent text-[#0A0A0A] shadow-[var(--sh-fab)] transition-colors duration-[120ms] hover:bg-accent-dim lg:hidden";
-const style = { bottom: 16, right: 12 } as const;
+const mobileStyle = { bottom: 16, right: 12 } as const;
 
-export function Fab() {
+const desktopClassName =
+  "tap-fab fixed z-[var(--z-fab)] hidden h-[46px] w-[46px] items-center justify-center rounded-xs bg-accent text-[#0A0A0A] shadow-[var(--sh-fab)] transition-colors duration-[120ms] hover:bg-accent-dim lg:inline-flex";
+const desktopStyle = { bottom: 4, right: 4 } as const;
+
+function FabBase({
+  surface,
+  className,
+  style,
+}: {
+  surface: "mobile" | "desktop";
+  className: string;
+  style: { bottom: number; right: number };
+}) {
   const pathname = usePathname();
   const { openDrawer, openSheet } = useShell();
-  const spec = fabForPath(pathname);
+  const spec = fabForPath(pathname, surface);
   if (spec.kind === "none") return null;
 
   if (spec.kind === "link") {
@@ -97,5 +114,25 @@ export function Fab() {
     >
       <Icon stroke="#0A0A0A" />
     </button>
+  );
+}
+
+export function Fab() {
+  return (
+    <FabBase
+      surface="mobile"
+      className={mobileClassName}
+      style={mobileStyle}
+    />
+  );
+}
+
+export function DesktopFab() {
+  return (
+    <FabBase
+      surface="desktop"
+      className={desktopClassName}
+      style={desktopStyle}
+    />
   );
 }
