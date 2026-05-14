@@ -5,7 +5,11 @@ import { Header } from "@/components/header";
 import { FloatNav } from "@/components/float-nav";
 import { Fab } from "@/components/fab";
 import { Drawer } from "@/components/drawer";
-import { ShellProvider, useShell } from "@/components/shell-context";
+import {
+  ShellProvider,
+  useActiveProject,
+  useShell,
+} from "@/components/shell-context";
 import {
   AddAccountSheet,
   NewReportSheet,
@@ -14,20 +18,20 @@ import {
 import { CategoriesSheet } from "@/components/sheets/categories-sheet";
 import { TagsSheet } from "@/components/sheets/tags-sheet";
 import { EditAccountSheet } from "@/components/sheets/edit-account-sheet";
+import { NewProjectSheet } from "@/components/sheets/new-project-sheet";
 import {
   findAccount,
   findReport,
-  placeholderProjects,
 } from "@/lib/placeholder-data";
 
-function headerFor(pathname: string) {
+function headerFor(pathname: string, activeProjectName: string) {
   if (pathname === "/" || pathname.startsWith("/dashboard")) {
-    const project = placeholderProjects[0];
     return {
       eyebrow: "Project",
-      title: project?.name ?? "Workspace",
+      title: activeProjectName,
     };
   }
+  if (pathname.startsWith("/projects")) return { title: "Projects" };
   if (pathname.startsWith("/accounts/")) {
     const id = pathname.split("/")[2];
     const account = id ? findAccount(id) : null;
@@ -59,12 +63,13 @@ const VIEW_ONLY = /^\/reports\/[^/]+\/view(\/|$)/;
 function FrameInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { sheet, closeSheet } = useShell();
+  const activeProject = useActiveProject();
 
   if (VIEW_ONLY.test(pathname)) {
     return <>{children}</>;
   }
 
-  const head = headerFor(pathname);
+  const head = headerFor(pathname, activeProject?.name ?? "Workspace");
 
   return (
     <div
@@ -94,6 +99,10 @@ function FrameInner({ children }: { children: React.ReactNode }) {
       />
       <NewReportSheet
         open={sheet?.kind === "newReport"}
+        onClose={closeSheet}
+      />
+      <NewProjectSheet
+        open={sheet?.kind === "newProject"}
         onClose={closeSheet}
       />
       <TeamSheet

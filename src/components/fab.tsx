@@ -4,9 +4,11 @@ import { usePathname } from "next/navigation";
 import { IconPlus, IconSidebar, IconTeam } from "@/components/icons";
 import { useShell } from "@/components/shell-context";
 
+type SheetFab = "addAccount" | "newReport" | "manageTeam" | "newProject";
+
 type FabSpec =
   | { kind: "drawer"; label: string }
-  | { kind: "sheet"; sheet: "addAccount" | "newReport" | "manageTeam"; label: string }
+  | { kind: "sheet"; sheet: SheetFab; label: string }
   | { kind: "none" };
 
 function fabForPath(pathname: string): FabSpec {
@@ -25,6 +27,9 @@ function fabForPath(pathname: string): FabSpec {
   if (pathname.startsWith("/reports")) {
     return { kind: "sheet", sheet: "newReport", label: "New report" };
   }
+  if (pathname.startsWith("/projects")) {
+    return { kind: "sheet", sheet: "newProject", label: "New project" };
+  }
   if (pathname.startsWith("/settings")) {
     return { kind: "sheet", sheet: "manageTeam", label: "Manage team" };
   }
@@ -40,10 +45,7 @@ export function Fab() {
   const onClick =
     spec.kind === "drawer"
       ? openDrawer
-      : () =>
-          openSheet({
-            kind: spec.sheet as "addAccount" | "newReport" | "manageTeam",
-          });
+      : () => openSheet({ kind: spec.sheet });
 
   const Icon =
     spec.kind === "drawer"
