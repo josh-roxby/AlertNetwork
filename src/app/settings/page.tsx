@@ -31,14 +31,9 @@ export default function SettingsPage() {
         <SettingsRow
           kind="value"
           label="Daily log time"
-          subtitle="Runs every day"
+          subtitle="Every account is logged once a day at this time."
           value="08:00 GMT"
-        />
-        <SettingsRow
-          kind="value"
-          label="Weekly log day"
-          subtitle="Runs once a week"
-          value="Mon"
+          chevron={false}
         />
         <SettingsRow
           kind="value"
@@ -81,11 +76,9 @@ export default function SettingsPage() {
           status="good"
           value="On"
         />
-        <SettingsRow kind="toggle" label="Slack alerts" on={false} />
       </SettingsSection>
 
       <SettingsSection label="Danger zone">
-        <SettingsRow kind="danger" label="Archive project" />
         <SettingsRow kind="danger" label="Delete project" />
       </SettingsSection>
     </>

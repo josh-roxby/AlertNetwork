@@ -12,7 +12,6 @@ const STATUS_DOT: Record<Report["status"], string> = {
 const CADENCE_LABEL: Record<Report["cadence"], string> = {
   weekly: "Weekly",
   monthly: "Monthly",
-  "one-off": "One-off",
 };
 
 export function FeaturedReports({ max = 3 }: { max?: number }) {

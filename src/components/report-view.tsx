@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import { StatsGrid, type Stat } from "@/components/stats-grid";
 import { AccountRow } from "@/components/account-row";
 import {
@@ -13,7 +12,6 @@ import { compactNumber, relativeDate } from "@/lib/format";
 const CADENCE_LABEL: Record<Report["cadence"], string> = {
   weekly: "Weekly",
   monthly: "Monthly",
-  "one-off": "One-off",
 };
 
 export function ReportView({
@@ -34,15 +32,10 @@ export function ReportView({
     (m, a) => (a.healthScore > m ? a.healthScore : m),
     0,
   );
-  const movers = useMemo(
-    () => accounts.filter((a) => Math.abs(a.trendDelta) >= 8),
-    [accounts],
-  );
-  const top = useMemo(
-    () =>
-      [...accounts].sort((a, b) => b.healthScore - a.healthScore).slice(0, 4),
-    [accounts],
-  );
+  const movers = accounts.filter((a) => Math.abs(a.trendDelta) >= 8);
+  const top = [...accounts]
+    .sort((a, b) => b.healthScore - a.healthScore)
+    .slice(0, 4);
   const reach = accounts.reduce((s, a) => s + a.followers, 0);
 
   const stats: Stat[] = [

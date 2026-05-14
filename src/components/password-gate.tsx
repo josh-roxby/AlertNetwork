@@ -32,6 +32,10 @@ export function PasswordGate({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // The unlock check must run after mount because localStorage isn't
+    // available during SSR. Rendering an empty placeholder until then
+    // avoids a hydration mismatch — intentional cascading render.
+    /* eslint-disable react-hooks/set-state-in-effect */
     setHydrated(true);
     if (
       typeof window !== "undefined" &&
@@ -39,6 +43,7 @@ export function PasswordGate({
     ) {
       setUnlocked(true);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [report.id]);
 
   if (!hydrated) {

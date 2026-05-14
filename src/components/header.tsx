@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { IconBack, IconHamburger } from "@/components/icons";
 import { NotificationsMenu } from "@/components/notifications-menu";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { useShell } from "@/components/shell-context";
 
 export function Header({
@@ -21,7 +22,7 @@ export function Header({
 
   return (
     <header
-      className="absolute inset-x-0 top-0 z-[var(--z-sticky)] grid h-[52px] grid-cols-[36px_1fr_36px] items-center gap-1 border-b border-line bg-bg px-1"
+      className="absolute inset-x-0 top-0 z-[var(--z-sticky)] grid h-[52px] grid-cols-[36px_1fr_auto] items-center gap-1 border-b border-line bg-bg px-1"
       style={{ paddingInline: 4 }}
     >
       {backHref ? (
@@ -51,7 +52,8 @@ export function Header({
         <div className="t-h2 truncate text-ink">{title}</div>
       </div>
 
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-0.5">
+        <ThemeToggle />
         {rightAction ?? <NotificationsMenu />}
       </div>
     </header>

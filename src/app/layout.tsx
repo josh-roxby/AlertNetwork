@@ -36,6 +36,23 @@ export const viewport: Viewport = {
   themeColor: "#0a0a0a",
 };
 
+// Inline before-paint script: sets data-theme on <html> based on the stored
+// preference, or the system color-scheme on first launch. Runs sync so light
+// users never see a dark flash.
+const themeBootstrap = `
+(function(){
+  try {
+    var s = localStorage.getItem('anw-theme');
+    var t = s === 'light' || s === 'dark'
+      ? s
+      : (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    document.documentElement.dataset.theme = t;
+  } catch (e) {
+    document.documentElement.dataset.theme = 'dark';
+  }
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -45,6 +62,9 @@ export default function RootLayout({
       data-theme="dark"
       className={`${dmSans.variable} ${jetbrainsMono.variable} ${unbounded.variable} h-full antialiased`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
+      </head>
       <body className="min-h-full bg-bg text-ink">
         <AppShell>{children}</AppShell>
       </body>
