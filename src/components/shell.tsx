@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { Header } from "@/components/header";
 import { FloatNav } from "@/components/float-nav";
-import { Fab } from "@/components/fab";
+import { Fab, DesktopFab } from "@/components/fab";
 import { Drawer } from "@/components/drawer";
 import { DesktopShell } from "@/components/desktop-shell";
 import {
@@ -76,9 +76,12 @@ function FrameInner({ children }: { children: React.ReactNode }) {
         {children}
       </DesktopShell>
 
-      {/* Mobile frame — hidden at lg+; visible below. */}
+      {/* Mobile frame — hidden at lg+; visible below. Below md it stays
+          capped at 480px (phone shell). From md to lg the frame fills the
+          viewport so iPads aren't trapped in a narrow column; inner content
+          stays capped for readability. */}
       <div
-        className="relative mx-auto w-full max-w-[480px] overflow-hidden border-x border-line bg-bg lg:hidden"
+        className="relative mx-auto w-full max-w-[480px] overflow-hidden border-x border-line bg-bg md:max-w-none md:border-x-0 lg:hidden"
         style={{ height: "100dvh" }}
       >
         <Header
@@ -91,13 +94,18 @@ function FrameInner({ children }: { children: React.ReactNode }) {
           className="absolute inset-x-0 overflow-y-auto"
           style={{ top: 52, bottom: 0, paddingBottom: 92 }}
         >
-          <div className="px-4 pb-3 pt-4">{children}</div>
+          <div className="mx-auto w-full max-w-3xl px-4 pb-3 pt-4 md:px-6">
+            {children}
+          </div>
         </main>
 
         <FloatNav />
         <Fab />
         <Drawer />
       </div>
+
+      {/* Desktop FAB — only visible at lg+, fixed to viewport corner. */}
+      <DesktopFab />
 
       <AddAccountSheet
         open={sheet?.kind === "addAccount"}
