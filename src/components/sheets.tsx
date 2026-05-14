@@ -24,6 +24,7 @@ export function AddAccountSheet({
     refreshCategories,
     refreshAccounts,
     refreshTags,
+    refreshPosts,
   } = useShell();
   const [url, setUrl] = useState("");
   const [category, setCategory] = useState<string>("");
@@ -113,16 +114,28 @@ export function AddAccountSheet({
       return;
     }
 
-    // Now run the 7-day backfill scrape WHILE the sheet stays open so
-    // the user sees progress + outcome. The account is already saved,
-    // so even if Apify fails we don't roll back — we just show the
-    // failure inline and let them close.
+    // Now run the backfill scrape WHILE the sheet stays open so the
+    // user sees progress + outcome. windowHours=0 disables the time
+    // filter — Apify already returns posts most-recent-first, so the
+    // initial scrape captures everything visible. The daily cron
+    // re-runs at 48h so it stays a no-op for fresh data.
     setStatus("scraping");
-    const result = await triggerAccountScrape(createdAccount.id, 24 * 7);
+    const result = await triggerAccountScrape(createdAccount.id, 0);
     await refreshAccounts();
+    await refreshPosts();
     if (result.ok) {
       setScrapeSummary({ scanned: result.scanned, written: result.written });
-      setStatus("done");
+      if (result.written === 0 && result.scanned > 0) {
+        // Apify returned posts but the mapper rejected every one of
+        // them — likely a schema mismatch we haven't seen before.
+        // Surface the field names so the user can report them.
+        setStatus("error");
+        setErrorMessage(
+          `Apify returned ${result.scanned} post${result.scanned === 1 ? "" : "s"} but none could be mapped to the database. Fields seen: ${(result.diagnosticKeys ?? []).slice(0, 8).join(", ") || "unknown"}.`,
+        );
+      } else {
+        setStatus("done");
+      }
     } else {
       setStatus("error");
       setErrorMessage(

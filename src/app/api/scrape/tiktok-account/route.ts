@@ -5,6 +5,7 @@ import {
   filterByWindow,
   mapApifyPost,
   scrapeTikTokUrl,
+  type ApifyTikTokPost,
 } from "@/lib/apify/tiktok";
 import { bumpAccountLastScraped, upsertPosts } from "@/lib/data/posts";
 
@@ -14,7 +15,7 @@ export const maxDuration = 60;
 
 type Body = {
   accountId?: string;
-  windowHours?: number;
+  windowHours?: number; // 0 = no filter (write everything Apify returned)
   maxItems?: number;
 };
 
@@ -24,7 +25,7 @@ type Body = {
 //   - Logged-in user (Supabase cookie session): must own the account
 //     via RLS. Used by AddAccountSheet for the 7-day backfill.
 //   - Cron / service callers: pass `Authorization: Bearer
-//     ${CRON_SHARED_SECRET}`. Used by the daily 48h scrape (N-3).
+//     ${CRON_SHARED_SECRET}`. Used by the daily 48h scrape.
 //
 // In both cases the actual posts upsert + account stamp run against
 // the service-role client so RLS doesn't gate the cron path.
@@ -43,6 +44,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // 0 = "write every post Apify returns"; the per-account backfill
+  // sends 0 so we capture everything visible. The daily cron sends
+  // 48 so it only adds genuinely new rows.
   const windowHours = body.windowHours ?? 48;
   const maxItems = body.maxItems ?? 50;
 
@@ -61,7 +65,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
-    // RLS gates the read — confirms the user owns this account.
     const { data: owned, error: ownError } = await supabase
       .from("accounts")
       .select("id")
@@ -72,7 +75,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // From here on, service-role for the upserts.
   const admin = supabaseAdmin();
   const { data: account, error: accError } = await admin
     .from("accounts")
@@ -86,7 +88,8 @@ export async function POST(request: NextRequest) {
 
   let scanned = 0;
   let mappedCount = 0;
-  let written = 0;
+  let writtenCount = 0;
+  let sampleKeys: string[] = [];
   try {
     const apifyPosts = await scrapeTikTokUrl({
       url: account.url,
@@ -98,26 +101,49 @@ export async function POST(request: NextRequest) {
       .map(mapApifyPost)
       .filter((p): p is NonNullable<typeof p> => p !== null);
     mappedCount = mapped.length;
-    const withinWindow = filterByWindow(mapped, windowHours);
 
+    // Diagnostic: if Apify returned posts but our mapper bailed for
+    // ALL of them, dump the keys + a truncated sample of the first
+    // post so Vercel logs reveal the actor's actual schema.
+    if (scanned > 0 && mappedCount === 0) {
+      const sample = apifyPosts[0] ?? ({} as ApifyTikTokPost);
+      sampleKeys = Object.keys(sample);
+      const truncated = JSON.stringify(sample).slice(0, 800);
+      console.error(
+        `[scrape] account=${account.id} mapper bailed for all ${scanned} posts. Keys: ${sampleKeys.join(", ")}. Sample: ${truncated}`,
+      );
+    }
+
+    const withinWindow = filterByWindow(mapped, windowHours);
     const result = await upsertPosts(admin, account.id, withinWindow);
-    written = result.written;
+    writtenCount = result.written;
 
     await bumpAccountLastScraped(admin, account.id);
 
-    // Server logs make Vercel function logs diagnosable without
-    // having to add app-level telemetry yet.
     console.info(
-      `[scrape] account=${account.id} scanned=${scanned} mapped=${mappedCount} withinWindow=${withinWindow.length} wrote=${written} window=${windowHours}h`,
+      `[scrape] account=${account.id} scanned=${scanned} mapped=${mappedCount} withinWindow=${withinWindow.length} wrote=${writtenCount} window=${windowHours}h`,
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : "scrape failed";
     console.error(`[scrape] account=${account.id} failed: ${message}`);
     return NextResponse.json(
-      { error: message, scanned, written },
+      {
+        error: message,
+        scanned,
+        mapped: mappedCount,
+        written: writtenCount,
+      },
       { status: 502 },
     );
   }
 
-  return NextResponse.json({ scanned, written, windowHours });
+  return NextResponse.json({
+    scanned,
+    mapped: mappedCount,
+    written: writtenCount,
+    windowHours,
+    // When the mapper bailed wholesale, surface the keys so the user
+    // can report them without us needing log access.
+    diagnosticKeys: sampleKeys.length > 0 ? sampleKeys : undefined,
+  });
 }

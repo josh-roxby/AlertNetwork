@@ -14,9 +14,11 @@ import { listCategories } from "@/lib/data/categories";
 import { listAccounts } from "@/lib/data/accounts";
 import { listTags } from "@/lib/data/tags";
 import { listReports } from "@/lib/data/reports";
+import { listPostsForProject } from "@/lib/data/posts";
 import type {
   AccountView,
   CategoryRow,
+  PostRow,
   ProjectRow,
   ReportRow,
   TagRow,
@@ -48,6 +50,9 @@ type ShellContextValue = {
   accountsLoading: boolean;
   reports: ReportRow[];
   reportsLoading: boolean;
+  posts: PostRow[];
+  postsLoading: boolean;
+  postsByAccount: Map<string, PostRow[]>;
   openDrawer: () => void;
   closeDrawer: () => void;
   openSheet: (s: SheetState) => void;
@@ -58,6 +63,7 @@ type ShellContextValue = {
   refreshTags: () => Promise<void>;
   refreshAccounts: () => Promise<void>;
   refreshReports: () => Promise<void>;
+  refreshPosts: () => Promise<void>;
 };
 
 const ShellContext = createContext<ShellContextValue | null>(null);
@@ -75,6 +81,8 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [reportsLoading, setReportsLoading] = useState(true);
+  const [posts, setPosts] = useState<PostRow[]>([]);
+  const [postsLoading, setPostsLoading] = useState(true);
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(
     null,
   );
@@ -245,6 +253,34 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
     await loadReports(activeProjectId, { silent: true });
   }, [loadReports, activeProjectId]);
 
+  const loadPosts = useCallback(
+    async (projectId: string | null, opts: { silent?: boolean } = {}) => {
+      if (!projectId) {
+        setPosts([]);
+        setPostsLoading(false);
+        return;
+      }
+      if (!opts.silent) setPostsLoading(true);
+      try {
+        // 30-day window keeps the payload bounded — health is
+        // computed on this slice in `lib/data/health.ts`.
+        const rows = await listPostsForProject(projectId, {
+          sinceHours: 24 * 30,
+        });
+        setPosts(rows);
+      } catch {
+        setPosts([]);
+      } finally {
+        setPostsLoading(false);
+      }
+    },
+    [],
+  );
+
+  const refreshPosts = useCallback(async () => {
+    await loadPosts(activeProjectId, { silent: true });
+  }, [loadPosts, activeProjectId]);
+
   // Reload per-project data whenever the active project changes. Not
   // silent — the project switch genuinely invalidates the existing
   // lists, so users should see a skeleton during the fetch.
@@ -254,14 +290,29 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
     loadTags(activeProjectId);
     loadAccounts(activeProjectId);
     loadReports(activeProjectId);
+    loadPosts(activeProjectId);
   }, [
     activeProjectId,
     loadCategories,
     loadTags,
     loadAccounts,
     loadReports,
+    loadPosts,
   ]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Bucket posts by account once per render so consumers don't have
+  // to redo the grouping on every memo recompute. Cheap for the
+  // volumes we care about (~3000 rows max).
+  const postsByAccount = useMemo(() => {
+    const map = new Map<string, PostRow[]>();
+    for (const p of posts) {
+      const arr = map.get(p.account_id);
+      if (arr) arr.push(p);
+      else map.set(p.account_id, [p]);
+    }
+    return map;
+  }, [posts]);
 
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
@@ -283,6 +334,9 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       accountsLoading,
       reports,
       reportsLoading,
+      posts,
+      postsLoading,
+      postsByAccount,
       openDrawer,
       closeDrawer,
       openSheet,
@@ -293,6 +347,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       refreshTags,
       refreshAccounts,
       refreshReports,
+      refreshPosts,
     }),
     [
       drawerOpen,
@@ -308,6 +363,9 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       accountsLoading,
       reports,
       reportsLoading,
+      posts,
+      postsLoading,
+      postsByAccount,
       openDrawer,
       closeDrawer,
       openSheet,
@@ -318,6 +376,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       refreshTags,
       refreshAccounts,
       refreshReports,
+      refreshPosts,
     ],
   );
 

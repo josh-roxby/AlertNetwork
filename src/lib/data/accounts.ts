@@ -152,8 +152,22 @@ export async function updateAccount(
 // string. Used by AddAccountSheet's fire-and-forget backfill and the
 // "Rescan" button on AccountDetail.
 export type ScrapeResult =
-  | { ok: true; scanned: number; written: number; windowHours: number }
-  | { ok: false; error: string; status: number };
+  | {
+      ok: true;
+      scanned: number;
+      mapped: number;
+      written: number;
+      windowHours: number;
+      diagnosticKeys?: string[];
+    }
+  | {
+      ok: false;
+      error: string;
+      status: number;
+      scanned?: number;
+      mapped?: number;
+      written?: number;
+    };
 
 export async function triggerAccountScrape(
   accountId: string,
@@ -165,26 +179,31 @@ export async function triggerAccountScrape(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ accountId, windowHours }),
     });
-    const body = (await res
-      .json()
-      .catch(() => ({}))) as Partial<ScrapeResult> & {
+    const body = (await res.json().catch(() => ({}))) as {
       scanned?: number;
+      mapped?: number;
       written?: number;
       error?: string;
       windowHours?: number;
+      diagnosticKeys?: string[];
     };
     if (!res.ok) {
       return {
         ok: false,
         error: body.error ?? `Scrape failed (${res.status})`,
         status: res.status,
+        scanned: body.scanned,
+        mapped: body.mapped,
+        written: body.written,
       };
     }
     return {
       ok: true,
       scanned: body.scanned ?? 0,
+      mapped: body.mapped ?? 0,
       written: body.written ?? 0,
       windowHours: body.windowHours ?? windowHours,
+      diagnosticKeys: body.diagnosticKeys,
     };
   } catch (err) {
     return {
