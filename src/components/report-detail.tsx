@@ -1,12 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { TabNav } from "@/components/tab-nav";
 import { StatsGrid, type Stat } from "@/components/stats-grid";
 import { AccountRow } from "@/components/account-row";
 import { Star } from "@/components/featured-reports";
 import {
+  CATEGORIES,
+  placeholderAccounts,
   type Account,
+  type Category,
   type Report,
   type ReportHistoryEntry,
 } from "@/lib/placeholder-data";
@@ -64,7 +68,7 @@ export function ReportDetail({
 
   return (
     <>
-      <ReportTitleBlock report={report} />
+      <ReportTitleBlock report={report} reportId={report.id} />
 
       <div className="mb-4">
         <TabNav<Tab>
@@ -85,11 +89,30 @@ export function ReportDetail({
   );
 }
 
-function ReportTitleBlock({ report }: { report: Report }) {
+function ReportTitleBlock({
+  report,
+  reportId,
+}: {
+  report: Report;
+  reportId: string;
+}) {
   const s = STATUS_STYLE[report.status];
   return (
     <section className="mb-4">
-      <h1 className="t-display-1 uppercase text-ink">{report.name}</h1>
+      <div className="flex items-start justify-between gap-3">
+        <h1 className="t-display-1 uppercase text-ink">{report.name}</h1>
+        <a
+          href={`/reports/${reportId}/view`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="tap-btn inline-flex shrink-0 items-center gap-1 rounded-full border border-line-2 bg-surface px-2.5 py-1 text-ink-2 hover:bg-surface-2 hover:text-ink"
+          style={{ fontSize: 11, fontWeight: 600 }}
+          title="Open the shareable view in a new tab"
+        >
+          View
+          <span aria-hidden>↗</span>
+        </a>
+      </div>
       <p className="mt-1 t-small text-ink-3">{report.description}</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span
@@ -250,6 +273,8 @@ function RecentTab({
         </section>
       )}
 
+      <ByCategorySection accounts={accounts} />
+
       <section className="flex flex-col gap-2">
         <button
           type="button"
@@ -259,6 +284,9 @@ function RecentTab({
         </button>
         <button
           type="button"
+          onClick={() => {
+            if (typeof window !== "undefined") window.print();
+          }}
           className="tap-btn rounded-sm border border-line-2 bg-surface px-4 py-3 t-body font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
         >
           Export PDF
@@ -296,7 +324,7 @@ function HistoryTab({ report }: { report: Report }) {
       <ul className="flex flex-col gap-2">
         {report.history.map((h) => (
           <li key={h.id}>
-            <HistoryItem entry={h} />
+            <HistoryItem reportId={report.id} entry={h} />
           </li>
         ))}
       </ul>
@@ -304,11 +332,19 @@ function HistoryTab({ report }: { report: Report }) {
   );
 }
 
-function HistoryItem({ entry }: { entry: ReportHistoryEntry }) {
+function HistoryItem({
+  reportId,
+  entry,
+}: {
+  reportId: string;
+  entry: ReportHistoryEntry;
+}) {
   const s = DELIVERY_STYLE[entry.status];
   return (
-    <button
-      type="button"
+    <a
+      href={`/reports/${reportId}/view?historyId=${entry.id}`}
+      target="_blank"
+      rel="noopener noreferrer"
       className="tap-row flex w-full flex-col gap-1 rounded-md border border-line bg-surface px-3.5 py-3 text-left transition-colors duration-[120ms] hover:bg-surface-2"
     >
       <div className="flex items-center justify-between gap-3">
@@ -336,7 +372,7 @@ function HistoryItem({ entry }: { entry: ReportHistoryEntry }) {
         </span>
         <span>{relativeDate(entry.sentAt)}</span>
       </div>
-    </button>
+    </a>
   );
 }
 
@@ -344,6 +380,26 @@ function SettingsTab({ report }: { report: Report }) {
   const cadenceOptions: Report["cadence"][] = ["one-off", "weekly", "monthly"];
   const scopeOptions: Report["scopeKind"][] = ["project", "tag", "account"];
   const [featured, setFeatured] = useState(report.isFeatured);
+  const [scope, setScope] = useState<Report["scopeKind"]>(report.scopeKind);
+  const [pickedCategories, setPickedCategories] = useState<Set<Category>>(
+    () => new Set<Category>(),
+  );
+  const [pickedAccounts, setPickedAccounts] = useState<Set<string>>(
+    () => new Set(report.accountIds),
+  );
+
+  function toggleCategory(c: Category) {
+    const next = new Set(pickedCategories);
+    if (next.has(c)) next.delete(c);
+    else next.add(c);
+    setPickedCategories(next);
+  }
+  function toggleAccount(id: string) {
+    const next = new Set(pickedAccounts);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setPickedAccounts(next);
+  }
 
   return (
     <>
@@ -406,18 +462,15 @@ function SettingsTab({ report }: { report: Report }) {
         </div>
       </div>
 
-      <Segmented
-        label="Scope"
-        options={scopeOptions.map((k) => ({
-          id: k,
-          label:
-            k === "project"
-              ? "By project"
-              : k === "tag"
-                ? "By tag"
-                : "Specific",
-        }))}
-        active={report.scopeKind}
+      <ScopeControl
+        scope={scope}
+        scopeOptions={scopeOptions}
+        pickedCategories={pickedCategories}
+        pickedAccounts={pickedAccounts}
+        onScopeChange={setScope}
+        onToggleCategory={toggleCategory}
+        onToggleAccount={toggleAccount}
+        totalAccounts={placeholderAccounts.length}
       />
 
       <p className="mt-2 rounded-sm border border-accent-line bg-accent-soft px-3 py-2 t-small text-accent">
@@ -592,4 +645,278 @@ function formatDateShort(iso: string) {
     minute: "2-digit",
     timeZone: "UTC",
   });
+}
+
+// -----------------------------------------------------------------------------
+// By-category section (Recent tab) — groups accounts in the report by their
+// category, shows per-group stats, lists the accounts.
+
+const CATEGORY_LABEL: Record<Category, string> = {
+  fashion: "Fashion",
+  food: "Food",
+  beauty: "Beauty",
+  tech: "Tech",
+  sports: "Sports",
+  music: "Music",
+  travel: "Travel",
+  lifestyle: "Lifestyle",
+};
+
+const CATEGORY_COLOR: Record<Category, string> = {
+  fashion: "bg-cat-fashion",
+  food: "bg-cat-food",
+  beauty: "bg-cat-beauty",
+  tech: "bg-cat-tech",
+  sports: "bg-cat-sports",
+  music: "bg-cat-music",
+  travel: "bg-cat-travel",
+  lifestyle: "bg-cat-lifestyle",
+};
+
+function ByCategorySection({ accounts }: { accounts: Account[] }) {
+  const groups = useMemo(() => {
+    const buckets = new Map<Category, Account[]>();
+    for (const a of accounts) {
+      const arr = buckets.get(a.category) ?? [];
+      arr.push(a);
+      buckets.set(a.category, arr);
+    }
+    return Array.from(buckets.entries())
+      .map(([category, items]) => ({
+        category,
+        items: items.sort((x, y) => y.healthScore - x.healthScore),
+        avgHealth: Math.round(
+          items.reduce((s, x) => s + x.healthScore, 0) / items.length,
+        ),
+        topScore: items.reduce(
+          (m, x) => (x.healthScore > m ? x.healthScore : m),
+          0,
+        ),
+        reach: items.reduce((s, x) => s + x.followers, 0),
+      }))
+      .sort((a, b) => b.items.length - a.items.length);
+  }, [accounts]);
+
+  if (groups.length === 0) return null;
+
+  return (
+    <section className="mb-5">
+      <div className="mb-2 flex items-center justify-between px-1">
+        <span className="t-micro text-ink-3">By category</span>
+        <span data-numeric className="t-small text-ink-3">
+          {groups.length}
+        </span>
+      </div>
+      <div className="flex flex-col gap-3">
+        {groups.map((g) => (
+          <article
+            key={g.category}
+            className="overflow-hidden rounded-md border border-line bg-surface"
+          >
+            <header className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
+              <span className="flex items-center gap-2">
+                <span
+                  aria-hidden
+                  className={`inline-block h-2.5 w-2.5 rounded-full ${CATEGORY_COLOR[g.category]}`}
+                />
+                <span className="t-body font-semibold text-ink">
+                  {CATEGORY_LABEL[g.category]}
+                </span>
+                <span
+                  data-numeric
+                  className="text-ink-3"
+                  style={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
+                >
+                  {g.items.length}
+                </span>
+              </span>
+              <span
+                data-numeric
+                className="flex items-center gap-2 text-ink-3"
+                style={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
+              >
+                <span>Avg {g.avgHealth}</span>
+                <span className="text-ink-4">·</span>
+                <span>Top {g.topScore}</span>
+                <span className="text-ink-4">·</span>
+                <span>{compactNumber(g.reach)}</span>
+              </span>
+            </header>
+            <ul className="flex flex-col">
+              {g.items.map((a) => (
+                <li key={a.id} className="border-b border-line last:border-b-0">
+                  <AccountRow account={a} />
+                </li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Scope control (Settings tab)
+
+function ScopeControl({
+  scope,
+  scopeOptions,
+  pickedCategories,
+  pickedAccounts,
+  onScopeChange,
+  onToggleCategory,
+  onToggleAccount,
+  totalAccounts,
+}: {
+  scope: Report["scopeKind"];
+  scopeOptions: Report["scopeKind"][];
+  pickedCategories: Set<Category>;
+  pickedAccounts: Set<string>;
+  onScopeChange: (s: Report["scopeKind"]) => void;
+  onToggleCategory: (c: Category) => void;
+  onToggleAccount: (id: string) => void;
+  totalAccounts: number;
+}) {
+  return (
+    <div className="mb-4">
+      <span className="t-micro mb-1.5 block text-ink-3">Scope</span>
+      <div className="grid grid-cols-3 gap-1 rounded-sm border border-line-2 bg-surface-2 p-1">
+        {scopeOptions.map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => onScopeChange(k)}
+            aria-pressed={k === scope}
+            className={`tap-btn rounded-xs px-2 py-1.5 t-small font-medium transition-colors duration-[120ms] ${
+              k === scope ? "bg-bg text-ink" : "text-ink-2 hover:text-ink"
+            }`}
+          >
+            {k === "project" ? "Project" : k === "tag" ? "Category" : "Specific"}
+          </button>
+        ))}
+      </div>
+
+      {scope === "project" && (
+        <div className="mt-2 rounded-sm border border-line bg-surface px-3 py-2 t-small text-ink-2">
+          Includes <span data-numeric className="text-ink">{totalAccounts}</span> account{totalAccounts === 1 ? "" : "s"} — every account in this project.
+        </div>
+      )}
+
+      {scope === "tag" && (
+        <div className="mt-2">
+          <ul className="grid grid-cols-2 gap-1">
+            {CATEGORIES.map((c) => {
+              const selected = pickedCategories.has(c.id);
+              return (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => onToggleCategory(c.id)}
+                    aria-pressed={selected}
+                    className={`tap-row flex w-full items-center gap-2 rounded-sm border px-3 py-2 text-left transition-colors duration-[120ms] ${
+                      selected
+                        ? "border-accent-line bg-accent-soft"
+                        : "border-line-2 bg-surface hover:bg-surface-2"
+                    }`}
+                  >
+                    <Checkbox checked={selected} />
+                    <span
+                      aria-hidden
+                      className={`inline-block h-2 w-2 rounded-full ${CATEGORY_COLOR[c.id]}`}
+                    />
+                    <span
+                      className={`t-body ${selected ? "text-ink font-semibold" : "text-ink-2"}`}
+                    >
+                      {c.label}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-1.5 t-small text-ink-3">
+            {pickedCategories.size === 0
+              ? "Select one or more categories."
+              : `${pickedCategories.size} selected.`}
+          </p>
+        </div>
+      )}
+
+      {scope === "account" && (
+        <div className="mt-2">
+          <ul className="flex max-h-[260px] flex-col gap-1 overflow-y-auto rounded-sm border border-line-2 bg-surface p-1">
+            {placeholderAccounts.map((a) => {
+              const selected = pickedAccounts.has(a.id);
+              return (
+                <li key={a.id}>
+                  <button
+                    type="button"
+                    onClick={() => onToggleAccount(a.id)}
+                    aria-pressed={selected}
+                    className={`tap-row flex w-full items-center gap-2 rounded-xs px-2 py-2 text-left transition-colors duration-[120ms] ${
+                      selected ? "bg-accent-soft" : "hover:bg-surface-2"
+                    }`}
+                  >
+                    <Checkbox checked={selected} />
+                    <span
+                      aria-hidden
+                      className={`inline-block h-2 w-2 shrink-0 rounded-full ${CATEGORY_COLOR[a.category]}`}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className={`block t-body truncate ${selected ? "text-ink font-semibold" : "text-ink-2"}`}
+                      >
+                        {a.handle}
+                      </span>
+                      <span
+                        data-numeric
+                        className="block t-small text-ink-3"
+                      >
+                        {compactNumber(a.followers)} followers · {a.healthScore}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-1.5 t-small text-ink-3">
+            {pickedAccounts.size === 0
+              ? "Select one or more accounts."
+              : `${pickedAccounts.size} selected.`}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Checkbox({ checked }: { checked: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-xs border ${
+        checked
+          ? "border-accent bg-accent text-[#0A0A0A]"
+          : "border-line-3 bg-surface-2"
+      }`}
+    >
+      {checked && (
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M2 5l2 2 4-4" />
+        </svg>
+      )}
+    </span>
+  );
 }

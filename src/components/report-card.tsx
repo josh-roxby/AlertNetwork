@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { type Report } from "@/lib/placeholder-data";
+import { accountsForReport, type Report } from "@/lib/placeholder-data";
 import { relativeDate } from "@/lib/format";
 
 type Status = Report["status"];
@@ -31,6 +31,12 @@ const CADENCE_LABEL: Record<Report["cadence"], string> = {
 
 export function ReportCard({ report }: { report: Report }) {
   const s = STATUS_STYLE[report.status];
+  const accounts = accountsForReport(report);
+  const avgHealth = accounts.length
+    ? Math.round(
+        accounts.reduce((sum, a) => sum + a.healthScore, 0) / accounts.length,
+      )
+    : null;
 
   return (
     <Link
@@ -68,14 +74,19 @@ export function ReportCard({ report }: { report: Report }) {
       </p>
       <div className="mt-3 grid grid-cols-3 gap-2 border-t border-line pt-3">
         <Meta label="Cadence" value={CADENCE_LABEL[report.cadence]} />
+        <Meta label="Accounts" value={accounts.length.toString()} />
         <Meta
-          label="Recipients"
-          value={report.recipients.toString()}
+          label="Avg health"
+          value={avgHealth !== null ? avgHealth.toString() : "—"}
         />
-        <Meta
-          label="Last sent"
-          value={report.lastSentAt ? relativeDate(report.lastSentAt) : "—"}
-        />
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 t-meta text-ink-3" style={{ fontSize: 10 }}>
+        <span>
+          {report.recipients} recipients
+        </span>
+        <span className="text-right">
+          {report.lastSentAt ? `Sent ${relativeDate(report.lastSentAt)}` : "Not sent"}
+        </span>
       </div>
     </Link>
   );
