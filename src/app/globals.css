@@ -427,3 +427,45 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Print styles for the shareable report view.
+ * Forces a light ink-on-paper render so saved PDFs read cleanly. Anything
+ * tagged data-print="hide" is dropped from the printed output (export
+ * buttons, the password gate, etc.). */
+@media print {
+  :root,
+  :root[data-theme="dark"],
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f6f6f6;
+    --surface-3: #ececec;
+    --line: #d9d9d9;
+    --line-2: #c1c1c1;
+    --line-3: #a0a0a0;
+    --ink: #0a0a0a;
+    --ink-2: #3a3a3a;
+    --ink-3: #6e6e6e;
+    --ink-4: #a0a0a0;
+    --accent: #b89800;
+    --accent-soft: rgba(184, 152, 0, 0.1);
+    --accent-line: rgba(184, 152, 0, 0.4);
+    --backdrop: transparent;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #0a0a0a !important;
+  }
+
+  [data-print="hide"] {
+    display: none !important;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}

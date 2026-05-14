@@ -69,6 +69,7 @@ export type Report = {
   recipientEmails: string[];
   status: "live" | "paused" | "draft";
   isFeatured: boolean;
+  password: string | null;
   lastSentAt: string | null;
   accountIds: string[];
   history: ReportHistoryEntry[];
@@ -274,6 +275,7 @@ export const placeholderReports: Report[] = [
     ],
     status: "live",
     isFeatured: true,
+    password: "clientx",
     lastSentAt: "2026-05-01T08:05:00Z",
     accountIds: ["acc_05", "acc_07", "acc_02", "acc_01", "acc_03"],
     history: [
@@ -325,6 +327,7 @@ export const placeholderReports: Report[] = [
     ],
     status: "live",
     isFeatured: true,
+    password: null,
     lastSentAt: "2026-05-12T08:10:00Z",
     accountIds: ["acc_01", "acc_05", "acc_04"],
     history: [
@@ -364,6 +367,7 @@ export const placeholderReports: Report[] = [
     recipientEmails: ["josh@exhalestudios.co"],
     status: "draft",
     isFeatured: false,
+    password: null,
     lastSentAt: null,
     accountIds: ["acc_06"],
     history: [],

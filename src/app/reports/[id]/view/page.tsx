@@ -5,6 +5,7 @@ import {
   type ReportHistoryEntry,
 } from "@/lib/placeholder-data";
 import { ReportView } from "@/components/report-view";
+import { PasswordGate } from "@/components/password-gate";
 
 export default async function ReportViewPage({
   params,
@@ -25,6 +26,16 @@ export default async function ReportViewPage({
   }
 
   const accounts = accountsForReport(report);
+
+  if (report.password) {
+    return (
+      <PasswordGate
+        report={report}
+        accounts={accounts}
+        historyEntry={historyEntry}
+      />
+    );
+  }
 
   return (
     <ReportView
