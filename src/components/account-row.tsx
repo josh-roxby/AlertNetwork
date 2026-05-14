@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { type Account, type Tier } from "@/lib/placeholder-data";
+import { type Account } from "@/lib/placeholder-data";
 import { compactNumber, percent, relativeDate } from "@/lib/format";
 import { healthBand } from "@/components/health-score";
 
@@ -33,14 +33,8 @@ const BAND_TONE = {
   critical: "text-bad",
 } as const;
 
-// How the trend delta should be read. Comparison window follows the
-// monitoring tier — daily accounts trend day-over-day, weekly accounts
-// week-over-week, etc.
-const TREND_WINDOW: Record<Tier, string> = {
-  daily: "WoW",
-  weekly: "MoM",
-  hourly: "DoD",
-};
+// Every account is logged daily, so trend reads week-over-week by default.
+const TREND_WINDOW = "WoW";
 
 export function AccountRow({ account }: { account: Account }) {
   const band = healthBand(account.healthScore);
@@ -66,16 +60,8 @@ export function AccountRow({ account }: { account: Account }) {
       </span>
 
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5">
-          <span
-            aria-hidden
-            className={`inline-block h-1.5 w-1.5 rounded-full ${
-              account.tier === "daily" ? "pulse-dot bg-accent" : "bg-ink-4"
-            }`}
-          />
-          <span className="t-body truncate font-semibold text-ink">
-            {account.handle}
-          </span>
+        <span className="t-body truncate font-semibold text-ink">
+          {account.handle}
         </span>
         <span
           data-numeric
@@ -116,7 +102,7 @@ export function AccountRow({ account }: { account: Account }) {
             className="opacity-70"
             style={{ fontSize: 8, fontWeight: 600, letterSpacing: "0.05em" }}
           >
-            {TREND_WINDOW[account.tier]}
+            {TREND_WINDOW}
           </span>
         </span>
       </span>

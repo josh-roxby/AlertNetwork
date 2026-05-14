@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Sheet } from "@/components/sheet";
 import { CATEGORIES, placeholderProjects } from "@/lib/placeholder-data";
 
@@ -109,6 +110,8 @@ function PreviewNote() {
   );
 }
 
+const NEW_CATEGORY_OPTION = "__new__";
+
 export function AddAccountSheet({
   open,
   onClose,
@@ -116,30 +119,65 @@ export function AddAccountSheet({
   open: boolean;
   onClose: () => void;
 }) {
+  const [url, setUrl] = useState("");
+  const [category, setCategory] = useState<string>("");
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagDraft, setTagDraft] = useState("");
+
+  const showCategoryCreate = category === NEW_CATEGORY_OPTION;
+
+  function commitTag() {
+    const cleaned = tagDraft.trim().replace(/^#/, "");
+    if (!cleaned) return;
+    if (tags.includes(cleaned)) {
+      setTagDraft("");
+      return;
+    }
+    setTags([...tags, cleaned]);
+    setTagDraft("");
+  }
+
+  function removeTag(t: string) {
+    setTags(tags.filter((x) => x !== t));
+  }
+
+  function reset() {
+    setUrl("");
+    setCategory("");
+    setNewCategoryName("");
+    setTags([]);
+    setTagDraft("");
+  }
+
   return (
     <Sheet
       open={open}
-      onClose={onClose}
+      onClose={() => {
+        reset();
+        onClose();
+      }}
       title="Add account"
       description="Paste a TikTok URL — handle is detected automatically."
       footer={<FooterButtons onClose={onClose} cta="Add to project" />}
     >
-      <TextField
-        label="Profile URL"
-        type="url"
-        placeholder="https://www.tiktok.com/@northlight"
-      />
-      <Segmented
-        label="Tier"
-        options={["Daily", "Weekly", "Hourly"]}
-        active="Daily"
-      />
+      <label className="mb-4 block">
+        <span className="t-micro mb-1.5 block text-ink-3">Profile URL</span>
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://www.tiktok.com/@northlight"
+          className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+        />
+      </label>
+
       <label className="mb-4 block">
         <span className="t-micro mb-1.5 block text-ink-3">Category</span>
         <select
-          disabled
-          className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink disabled:opacity-70"
-          defaultValue=""
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink focus:border-accent focus:outline-none"
         >
           <option value="">Pick a category…</option>
           {CATEGORIES.map((c) => (
@@ -147,8 +185,78 @@ export function AddAccountSheet({
               {c.label}
             </option>
           ))}
+          <option value={NEW_CATEGORY_OPTION}>+ Add new category…</option>
         </select>
+        {showCategoryCreate && (
+          <div className="mt-2 rounded-sm border border-dashed border-line-2 p-2">
+            <input
+              type="text"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              placeholder="New category name"
+              className="h-10 w-full rounded-xs border border-line-2 bg-bg px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+              autoFocus
+            />
+            <p className="mt-1.5 t-small text-ink-3">
+              Categories are workspace-wide. Pick a colour from the fixed
+              palette in Settings → Tags &amp; categories once a category
+              manager exists (Round 3).
+            </p>
+          </div>
+        )}
       </label>
+
+      <div className="mb-4">
+        <span className="t-micro mb-1.5 block text-ink-3">Tags</span>
+        {tags.length > 0 && (
+          <ul className="mb-2 flex flex-wrap gap-1.5">
+            {tags.map((t) => (
+              <li key={t}>
+                <span
+                  className="inline-flex items-center gap-1 rounded-full border border-line-2 bg-surface-2 px-2.5 py-1 text-ink-2"
+                  style={{ fontSize: 11, fontFamily: "var(--font-mono)" }}
+                >
+                  <span className="text-ink-3">#</span>
+                  {t}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(t)}
+                    aria-label={`Remove tag ${t}`}
+                    className="-mr-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full text-ink-3 hover:bg-surface-3 hover:text-ink"
+                  >
+                    ×
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <input
+          type="text"
+          value={tagDraft}
+          onChange={(e) => setTagDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              commitTag();
+            } else if (
+              e.key === "Backspace" &&
+              tagDraft.length === 0 &&
+              tags.length > 0
+            ) {
+              setTags(tags.slice(0, -1));
+            }
+          }}
+          onBlur={commitTag}
+          placeholder="Type a tag, press Enter"
+          className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+        />
+        <p className="mt-1 t-small text-ink-3">
+          Enter or comma to add. Backspace on an empty input removes the
+          last tag.
+        </p>
+      </div>
+
       <PreviewNote />
     </Sheet>
   );

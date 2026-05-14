@@ -6,8 +6,6 @@
 
 export const PLACEHOLDER_MODE = true;
 
-export type Tier = "daily" | "weekly" | "hourly";
-
 export type Category =
   | "fashion"
   | "food"
@@ -35,7 +33,6 @@ export type Account = {
   displayName: string;
   platform: "tiktok";
   url: string;
-  tier: Tier;
   category: Category;
   followers: number;
   medianViews: number;
@@ -90,7 +87,6 @@ export const placeholderAccounts: Account[] = [
     displayName: "Northlight",
     platform: "tiktok",
     url: "https://www.tiktok.com/@northlight",
-    tier: "daily",
     category: "music",
     followers: 184_000,
     medianViews: 42_500,
@@ -108,7 +104,6 @@ export const placeholderAccounts: Account[] = [
     displayName: "Sunday Kitchen",
     platform: "tiktok",
     url: "https://www.tiktok.com/@sundaykitchen",
-    tier: "daily",
     category: "food",
     followers: 612_000,
     medianViews: 128_000,
@@ -126,7 +121,6 @@ export const placeholderAccounts: Account[] = [
     displayName: "Parkrun Pete",
     platform: "tiktok",
     url: "https://www.tiktok.com/@parkrunpete",
-    tier: "weekly",
     category: "sports",
     followers: 39_500,
     medianViews: 11_200,
@@ -144,7 +138,6 @@ export const placeholderAccounts: Account[] = [
     displayName: "Cassette Daily",
     platform: "tiktok",
     url: "https://www.tiktok.com/@cassette.daily",
-    tier: "daily",
     category: "music",
     followers: 92_300,
     medianViews: 18_800,
@@ -162,7 +155,6 @@ export const placeholderAccounts: Account[] = [
     displayName: "Studio Exhale",
     platform: "tiktok",
     url: "https://www.tiktok.com/@studio.exhale",
-    tier: "weekly",
     category: "music",
     followers: 1_240_000,
     medianViews: 305_000,
@@ -180,7 +172,6 @@ export const placeholderAccounts: Account[] = [
     displayName: "Quiet Mornings",
     platform: "tiktok",
     url: "https://www.tiktok.com/@quietmornings",
-    tier: "daily",
     category: "lifestyle",
     followers: 22_100,
     medianViews: 6_400,
@@ -198,7 +189,6 @@ export const placeholderAccounts: Account[] = [
     displayName: "Blueprint Beauty",
     platform: "tiktok",
     url: "https://www.tiktok.com/@blueprintbeauty",
-    tier: "weekly",
     category: "beauty",
     followers: 268_000,
     medianViews: 51_300,
@@ -216,7 +206,6 @@ export const placeholderAccounts: Account[] = [
     displayName: "Wire Five",
     platform: "tiktok",
     url: "https://www.tiktok.com/@wirefive",
-    tier: "daily",
     category: "tech",
     followers: 73_400,
     medianViews: 15_600,
