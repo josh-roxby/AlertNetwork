@@ -9,7 +9,7 @@ export function AddAccountTile() {
   return (
     <button
       type="button"
-      onClick={() => openSheet("addAccount")}
+      onClick={() => openSheet({ kind: "addAccount" })}
       className="tap-row group flex w-full items-center gap-3 rounded-md border border-dashed border-line-2 bg-transparent px-3 py-3 text-left transition-colors duration-[120ms] hover:border-line-3 hover:bg-surface-2/40"
     >
       <span

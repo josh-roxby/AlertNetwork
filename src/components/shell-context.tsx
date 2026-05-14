@@ -8,30 +8,36 @@ import {
   useState,
 } from "react";
 
-export type FabKind = "drawer" | "addAccount" | "newReport" | "manageTeam";
-export type SheetKind = "addAccount" | "newReport" | "manageTeam";
+export type SheetState =
+  | null
+  | { kind: "addAccount" }
+  | { kind: "newReport" }
+  | { kind: "manageTeam" }
+  | { kind: "categories" }
+  | { kind: "tags" }
+  | { kind: "editAccount"; accountId: string };
 
-type ShellState = {
+type ShellContextValue = {
   drawerOpen: boolean;
-  sheet: SheetKind | null;
+  sheet: SheetState;
   openDrawer: () => void;
   closeDrawer: () => void;
-  openSheet: (k: SheetKind) => void;
+  openSheet: (s: SheetState) => void;
   closeSheet: () => void;
 };
 
-const ShellContext = createContext<ShellState | null>(null);
+const ShellContext = createContext<ShellContextValue | null>(null);
 
 export function ShellProvider({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [sheet, setSheet] = useState<SheetKind | null>(null);
+  const [sheet, setSheet] = useState<SheetState>(null);
 
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
-  const openSheet = useCallback((k: SheetKind) => setSheet(k), []);
+  const openSheet = useCallback((s: SheetState) => setSheet(s), []);
   const closeSheet = useCallback(() => setSheet(null), []);
 
-  const value = useMemo<ShellState>(
+  const value = useMemo<ShellContextValue>(
     () => ({
       drawerOpen,
       sheet,
