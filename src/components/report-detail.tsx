@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { TabNav } from "@/components/tab-nav";
 import { StatsGrid, type Stat } from "@/components/stats-grid";
 import { AccountRow } from "@/components/account-row";
+import { Star } from "@/components/featured-reports";
 import {
   type Account,
   type Report,
@@ -342,9 +343,15 @@ function HistoryItem({ entry }: { entry: ReportHistoryEntry }) {
 function SettingsTab({ report }: { report: Report }) {
   const cadenceOptions: Report["cadence"][] = ["one-off", "weekly", "monthly"];
   const scopeOptions: Report["scopeKind"][] = ["project", "tag", "account"];
+  const [featured, setFeatured] = useState(report.isFeatured);
 
   return (
     <>
+      <FeatureToggle
+        on={featured}
+        onToggle={() => setFeatured((v) => !v)}
+      />
+
       <Field label="Name" defaultValue={report.name} />
       <Field
         label="Description"
@@ -439,6 +446,58 @@ function SettingsTab({ report }: { report: Report }) {
         </button>
       </section>
     </>
+  );
+}
+
+function FeatureToggle({
+  on,
+  onToggle,
+}: {
+  on: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={on}
+      className={`tap-row mb-5 flex w-full items-center gap-3 rounded-md border px-4 py-3 text-left transition-colors duration-[120ms] ${
+        on
+          ? "border-accent-line bg-accent-soft"
+          : "border-line-2 bg-surface hover:bg-surface-2"
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-sm ${
+          on ? "bg-accent text-[#0A0A0A]" : "bg-surface-2 text-ink-3"
+        }`}
+      >
+        <Star filled={on} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={`block t-body font-semibold ${on ? "text-accent" : "text-ink"}`}>
+          {on ? "Featured on dashboard" : "Feature on dashboard"}
+        </span>
+        <span className="mt-0.5 block t-small text-ink-3">
+          {on
+            ? "This report appears in the dashboard featured section."
+            : "Show this report in the dashboard featured section."}
+        </span>
+      </span>
+      <span
+        aria-hidden
+        className={`relative inline-block h-6 w-10 shrink-0 rounded-full transition-colors duration-[120ms] ${
+          on ? "bg-accent" : "bg-surface-3"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-[#0A0A0A] transition-transform duration-[120ms] ${
+            on ? "translate-x-[18px]" : "translate-x-0.5"
+          }`}
+        />
+      </span>
+    </button>
   );
 }
 
