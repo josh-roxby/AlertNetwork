@@ -12,7 +12,7 @@ export function TabNav<T extends string>({
   return (
     <div
       role="tablist"
-      className="no-scrollbar -mx-3 flex items-center gap-5 overflow-x-auto border-b border-line px-3"
+      className="no-scrollbar -mx-4 flex items-center gap-5 overflow-x-auto border-b border-line px-4"
     >
       {tabs.map((t) => {
         const isActive = t.id === active;

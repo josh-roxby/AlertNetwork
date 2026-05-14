@@ -173,7 +173,7 @@ export function Drawer() {
               ))}
             </ul>
             <Link
-              href="/settings"
+              href="/settings#tags-categories-section"
               onClick={closeDrawer}
               className="mt-3 flex w-full items-center justify-between rounded-sm border border-dashed border-line-2 px-3 py-2.5 text-ink-3 transition-colors duration-[120ms] hover:border-line-3 hover:text-ink"
             >

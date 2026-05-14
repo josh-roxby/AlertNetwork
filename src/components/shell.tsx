@@ -56,7 +56,7 @@ function FrameInner({ children }: { children: React.ReactNode }) {
         className="absolute inset-x-0 overflow-y-auto"
         style={{ top: 52, bottom: 0, paddingBottom: 92 }}
       >
-        <div className="px-3 pb-3 pt-4">{children}</div>
+        <div className="px-4 pb-3 pt-4">{children}</div>
       </main>
 
       <FloatNav />

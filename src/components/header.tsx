@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { IconBack, IconBell, IconHamburger } from "@/components/icons";
+import { IconBack, IconHamburger } from "@/components/icons";
+import { NotificationsMenu } from "@/components/notifications-menu";
 import { useShell } from "@/components/shell-context";
 
 export function Header({
@@ -51,19 +52,7 @@ export function Header({
       </div>
 
       <div className="flex items-center justify-end">
-        {rightAction ?? (
-          <button
-            type="button"
-            aria-label="Notifications"
-            className="tap-btn relative inline-flex h-9 w-9 items-center justify-center rounded-sm text-ink-2 hover:bg-surface-2 hover:text-ink"
-          >
-            <IconBell />
-            <span
-              aria-hidden
-              className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent"
-            />
-          </button>
-        )}
+        {rightAction ?? <NotificationsMenu />}
       </div>
     </header>
   );
