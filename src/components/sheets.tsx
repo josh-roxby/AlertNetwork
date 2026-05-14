@@ -4,76 +4,6 @@ import { useState } from "react";
 import { Sheet } from "@/components/sheet";
 import { CATEGORIES, placeholderProjects } from "@/lib/placeholder-data";
 
-function TextField({
-  label,
-  placeholder,
-  hint,
-  multiline = false,
-  type = "text",
-}: {
-  label: string;
-  placeholder: string;
-  hint?: string;
-  multiline?: boolean;
-  type?: string;
-}) {
-  return (
-    <label className="mb-4 block">
-      <span className="t-micro mb-1.5 block text-ink-3">{label}</span>
-      {multiline ? (
-        <textarea
-          disabled
-          placeholder={placeholder}
-          rows={3}
-          className="w-full resize-none rounded-sm border border-line-2 bg-surface-2 px-3 py-2 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-70"
-        />
-      ) : (
-        <input
-          disabled
-          type={type}
-          placeholder={placeholder}
-          className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-70"
-        />
-      )}
-      {hint && (
-        <span className="mt-1 block t-small text-ink-3">{hint}</span>
-      )}
-    </label>
-  );
-}
-
-function Segmented({
-  label,
-  options,
-  active,
-}: {
-  label: string;
-  options: string[];
-  active: string;
-}) {
-  return (
-    <div className="mb-4">
-      <span className="t-micro mb-1.5 block text-ink-3">{label}</span>
-      <div className="grid grid-cols-3 gap-1 rounded-sm border border-line-2 bg-surface-2 p-1">
-        {options.map((o) => (
-          <button
-            key={o}
-            type="button"
-            disabled
-            className={`tap-btn rounded-xs px-2 py-1.5 t-small font-medium transition-colors duration-[120ms] disabled:cursor-not-allowed ${
-              o === active
-                ? "bg-bg text-ink"
-                : "text-ink-2 hover:bg-bg/40 hover:text-ink"
-            }`}
-          >
-            {o}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function FooterButtons({
   onClose,
   cta,
@@ -257,48 +187,6 @@ export function AddAccountSheet({
         </p>
       </div>
 
-      <PreviewNote />
-    </Sheet>
-  );
-}
-
-export function NewReportSheet({
-  open,
-  onClose,
-}: {
-  open: boolean;
-  onClose: () => void;
-}) {
-  return (
-    <Sheet
-      open={open}
-      onClose={onClose}
-      title="New report"
-      description="Schedule a snapshot delivered by email."
-      footer={<FooterButtons onClose={onClose} cta="Create & edit" />}
-    >
-      <TextField
-        label="Name"
-        placeholder="Client X — monthly partner roundup"
-      />
-      <TextField
-        label="Description"
-        placeholder="Top performing partner accounts this month"
-        multiline
-      />
-      <Segmented
-        label="Cadence"
-        options={["Weekly", "Monthly"]}
-        active="Monthly"
-      />
-      <Segmented
-        label="Scope"
-        options={["Category", "Tag", "Specific"]}
-        active="Category"
-      />
-      <p className="mt-2 t-small text-ink-3">
-        You can refine recipients, scope and schedule after creating.
-      </p>
       <PreviewNote />
     </Sheet>
   );
