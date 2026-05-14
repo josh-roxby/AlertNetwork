@@ -26,39 +26,39 @@ Project work list for AlertNetwork. Organised by feature group. Format: `A-1-1` 
 
 ## Open (next round)
 
+### Decisions (settled 2026-05-14)
+
+- **Auth**: Supabase magic link only. No password flow, no OAuth (can add later).
+- **Tenancy**: single owner per project. `projects.owner_id = auth.uid()` is the only RLS root; cascade through FKs. `project_members` table dropped. The "Manage team" sheet stays as a placeholder until we add membership.
+- **No `snapshots` table**: charts compute from `posts` directly. Revisit if query perf needs a pre-aggregate.
+- **Posts**: backend-only for this round; no new Posts UI on `/accounts/[id]`.
+
 ### M. Database (Supabase)
 
-- [ ] **M-1** Provision a Supabase project. Capture URL, anon key, service role key in `.env.local` (and Vercel env vars).
-- [ ] **M-2** SQL migrations. Tables and columns to mirror the placeholder shapes in `src/lib/placeholder-data.ts`:
-  - `users` (id, email, name, created_at)
-  - `projects` (id, owner_id, name, description, created_at, updated_at)
-  - `project_members` (project_id, user_id, role: 'owner' | 'member' | 'viewer')
-  - `categories` (id, project_id, label, palette_id)
-  - `tags` (id, project_id, label)
-  - `accounts` (id, project_id, handle, display_name, platform, url, category_id, followers, created_at, last_logged_at)
-  - `account_tags` (account_id, tag_id)
-  - `snapshots` (id, account_id, taken_at, median_views, total_views, engagement_ratio, posts_per_cycle, health_score)
-  - `reports` (id, project_id, name, description, cadence: 'weekly' | 'monthly', schedule, scope_kind, status, is_featured, password_hash, last_sent_at)
-  - `report_accounts` (report_id, account_id) — for scope='account'
-  - `report_categories` (report_id, category_id) — for scope='tag'
-  - `report_recipients` (report_id, email)
-  - `report_history` (id, report_id, sent_at, status, recipients, accounts)
-- [ ] **M-3** Auth + Row-Level Security.
-  - Enable Supabase Auth (email + magic link is fine for v1).
-  - RLS policies on every table: users can read/write only their own projects + cascade.
-  - Replace `src/proxy.ts` no-op stub with a real proxy that checks the Supabase session. Flip `AUTH_ENABLED` to `true`.
-  - Replace the localStorage password gate (`src/components/password-gate.tsx`) with an HttpOnly cookie set by a server action, server-side validation against `password_hash`.
-  - Replace placeholder data reads with Supabase queries; delete `src/lib/placeholder-data.ts` and the `PLACEHOLDER_MODE` flag.
+- [ ] **M-1** Provision a Supabase project (user). Capture URL, anon key, service role key in `.env.local` (and Vercel env vars across Production / Preview / Development). See `supabase/README.md`.
+- [x] **M-2 scaffolding** SQL migration + Supabase client modules. `supabase/migrations/0001_init.sql` is the schema source of truth; `src/lib/supabase.ts`, `supabase-server.ts`, `supabase-admin.ts` are the three client wrappers.
+- [ ] **M-3** Wire auth + replace placeholder data.
+  - Add `/login` (magic-link request form) + the email callback route.
+  - Flip `src/proxy.ts` `AUTH_ENABLED` to `true`; check Supabase session, redirect unauth'd traffic.
+  - Replace localStorage password gate (`src/components/password-gate.tsx`) with HttpOnly cookie + server-side check against `reports.password_hash`.
+  - Swap every page's read from `src/lib/placeholder-data.ts` to Supabase queries. Add proper empty states for projects / accounts / categories / tags. Delete `placeholder-data.ts` and the `PLACEHOLDER_MODE` badge once nothing imports it.
 
-### N. Scrape + email function
+### N. Scrape + cron API routes
 
-- [ ] **N-1** Authenticated cron API at `/api/cron/scrape`. Iterates every account on Supabase across projects and pulls the last 24 hours of TikTok data. Stores snapshots. Single shared secret in the `Authorization` header (env var).
-- [ ] **N-2** TikTok API integration. **Waiting on the API spec from the user** — request shape, rate-limits, fields, error handling. Once received, normalise into the `snapshots` row shape from M-2.
-- [ ] **N-3** Report dispatch API at `/api/cron/reports`. Same cron fires this — iterate every report, decide if today is a send day (weekly → Monday; monthly → 1st), render the report (reuse `src/components/report-view.tsx` server-side or render to HTML email template), send via Gmail service account. Record the send in `report_history`.
+Apify constraints to bake in:
+- Endpoint: `POST https://api.apify.com/v2/acts/apidojo~tiktok-scraper-api/run-sync-get-dataset-items?token=$APIFY_API_KEY` — sync, dataset items inline in response.
+- 48h window is **server-side filtering** — Apify's `dateRange` only applies to keyword search, not `startUrls`. User feeds return most-recent first; we filter by post `createTime`.
+- `maxItems: 50` per account (~30 surfaces is typical). Cost reference: $0.0003/post × 30 × 100 accounts ≈ $0.90/day.
+- Keep the raw response in `posts.raw` (JSONB). Extract typed columns: `views, likes, comments, shares, saves, posted_at`. Engagement ratio is derived at query time.
+
+- [ ] **N-1** `GET /api/accounts` — list accounts for the logged-in user (RLS-gated). Returns `{ id, url, project_id, last_scraped_at }`.
+- [ ] **N-2** `POST /api/scrape/tiktok-daily` — body `{ accountId, url }`. Calls Apify, filters to last 48h, upserts `posts` on `(account_id, platform_post_id)`. Returns `{ scanned, inserted, updated }`. Idempotent — safe to retry.
+- [ ] **N-3** `POST /api/cron/daily` — guarded by `CRON_SHARED_SECRET`. Uses service-role client to read all accounts, then calls per-account scrape (sequential or limited concurrency of ~5). Returns a per-account summary.
+- [ ] **N-4** Email/report dispatch — separate slice, opened after the daily-scrape pipeline is producing real data. Will reuse `src/components/report-view.tsx` for HTML email rendering.
 
 ### O. GitHub Cron
 
-- [ ] **O-1** `.github/workflows/cron.yml` with `schedule: '0 8 * * *'` (08:00 GMT daily). Two jobs: hit `/api/cron/scrape` and `/api/cron/reports` with the shared secret. Document the secret rotation runbook.
+- [ ] **O-1** `.github/workflows/cron.yml` — `schedule: '0 8 * * *'` (08:00 UTC daily). Hits `/api/cron/daily` on the deployed Vercel URL with the `CRON_SHARED_SECRET` repo secret. Document the secret rotation runbook in `supabase/README.md`. Email/report cron is a separate workflow added with N-4.
 
 ## Small carry-overs (still relevant)
 
