@@ -1,8 +1,10 @@
+import { AnchorScroller } from "@/components/anchor-scroller";
 import { SettingsRow, SettingsSection } from "@/components/settings-row";
 
 export default function SettingsPage() {
   return (
     <>
+      <AnchorScroller />
       <section className="mb-4">
         <h1 className="t-display-1 uppercase text-ink">Settings</h1>
         <p className="mt-1 t-small text-ink-3">
@@ -58,8 +60,8 @@ export default function SettingsPage() {
         />
       </SettingsSection>
 
+      <div id="tags-categories-section" className="scroll-mt-4" />
       <SettingsSection label="Tags & categories">
-        <div id="tags-categories-section" />
         <SettingsRow kind="value" label="Categories" value="8" />
         <SettingsRow kind="value" label="Project tags" value="14" />
       </SettingsSection>
