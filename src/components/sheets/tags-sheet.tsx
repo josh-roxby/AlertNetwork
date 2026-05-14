@@ -1,10 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Sheet } from "@/components/sheet";
-import { placeholderAccounts } from "@/lib/placeholder-data";
-
-type TagRow = { name: string; count: number };
+import { useShell } from "@/components/shell-context";
+import { createTag, deleteTag, renameTag } from "@/lib/data/tags";
 
 export function TagsSheet({
   open,
@@ -13,55 +12,72 @@ export function TagsSheet({
   open: boolean;
   onClose: () => void;
 }) {
-  const initial: TagRow[] = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const a of placeholderAccounts) {
-      for (const t of a.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
-    }
-    return Array.from(counts.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  }, []);
+  const { activeProjectId, tags, accounts, refreshTags, refreshAccounts } =
+    useShell();
 
-  const [rows, setRows] = useState<TagRow[]>(initial);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [newTag, setNewTag] = useState("");
+  const [error, setError] = useState("");
 
-  function startRename(name: string) {
-    setRenaming(name);
-    setRenameDraft(name);
+  const countsById = accounts.reduce<Record<string, number>>((acc, a) => {
+    for (const label of a.tagLabels) {
+      // Match by label against tags state — both label-based and id-based
+      // counts are useful, but we surface a per-row count below using
+      // the tag id directly.
+      acc[label] = (acc[label] ?? 0) + 1;
+    }
+    return acc;
+  }, {});
+
+  function startRename(id: string, current: string) {
+    setRenaming(id);
+    setRenameDraft(current);
+    setError("");
   }
 
   function cancelRename() {
     setRenaming(null);
     setRenameDraft("");
+    setError("");
   }
 
-  function commitRename() {
+  async function commitRename() {
     if (!renaming) return;
     const cleaned = renameDraft.trim().replace(/^#/, "");
     if (cleaned.length === 0) return;
-    setRows(
-      rows.map((r) => (r.name === renaming ? { ...r, name: cleaned } : r)),
-    );
-    cancelRename();
+    try {
+      await renameTag(renaming, cleaned);
+      await refreshTags();
+      await refreshAccounts();
+      cancelRename();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save.");
+    }
   }
 
-  function addNew() {
+  async function addNew() {
+    if (!activeProjectId) return;
     const cleaned = newTag.trim().replace(/^#/, "");
     if (cleaned.length === 0) return;
-    if (rows.some((r) => r.name === cleaned)) {
+    try {
+      await createTag(activeProjectId, cleaned);
+      await refreshTags();
       setNewTag("");
-      return;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't add.");
     }
-    setRows([...rows, { name: cleaned, count: 0 }]);
-    setNewTag("");
   }
 
-  function remove(name: string) {
-    setRows(rows.filter((r) => r.name !== name));
-    if (renaming === name) cancelRename();
+  async function remove(id: string) {
+    try {
+      await deleteTag(id);
+      await refreshTags();
+      await refreshAccounts();
+      if (renaming === id) cancelRename();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't delete.");
+    }
   }
 
   return (
@@ -69,7 +85,7 @@ export function TagsSheet({
       open={open}
       onClose={onClose}
       title="Project tags"
-      description="Tags are project-specific and free-form. Use them to group beyond category."
+      description="Tags are project-specific. Use them to group beyond category."
       footer={
         <>
           <button
@@ -113,7 +129,7 @@ export function TagsSheet({
         />
       </div>
 
-      {rows.length === 0 ? (
+      {tags.length === 0 ? (
         <div className="rounded-md border border-line bg-surface px-3 py-6 text-center">
           <p className="t-body text-ink-2">No tags yet.</p>
           <p className="mt-1 t-small text-ink-3">
@@ -122,11 +138,12 @@ export function TagsSheet({
         </div>
       ) : (
         <ul className="flex flex-col gap-2">
-          {rows.map((r) => {
-            if (renaming === r.name) {
+          {tags.map((r) => {
+            const count = countsById[r.label] ?? 0;
+            if (renaming === r.id) {
               return (
                 <li
-                  key={r.name}
+                  key={r.id}
                   className="rounded-md border border-accent-line bg-accent-soft p-3"
                 >
                   <input
@@ -167,7 +184,7 @@ export function TagsSheet({
             }
             return (
               <li
-                key={r.name}
+                key={r.id}
                 className="flex items-center gap-3 rounded-md border border-line bg-surface px-3 py-2.5"
               >
                 <span
@@ -175,7 +192,7 @@ export function TagsSheet({
                   style={{ fontSize: 11, fontFamily: "var(--font-mono)" }}
                 >
                   <span className="text-ink-3">#</span>
-                  {r.name}
+                  {r.label}
                 </span>
                 <span className="min-w-0 flex-1" />
                 <span
@@ -183,12 +200,12 @@ export function TagsSheet({
                   className="text-ink-3"
                   style={{ fontSize: 11, fontFamily: "var(--font-mono)" }}
                 >
-                  {r.count} {r.count === 1 ? "account" : "accounts"}
+                  {count} {count === 1 ? "account" : "accounts"}
                 </span>
                 <div className="flex shrink-0 items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => startRename(r.name)}
+                    onClick={() => startRename(r.id, r.label)}
                     className="tap-btn rounded-sm border border-line-2 bg-surface-2 px-2.5 py-1 text-ink-2 hover:text-ink"
                     style={{ fontSize: 11 }}
                   >
@@ -196,8 +213,8 @@ export function TagsSheet({
                   </button>
                   <button
                     type="button"
-                    onClick={() => remove(r.name)}
-                    aria-label={`Remove tag ${r.name}`}
+                    onClick={() => remove(r.id)}
+                    aria-label={`Remove tag ${r.label}`}
                     className="tap-btn inline-flex h-7 w-7 items-center justify-center rounded-sm text-ink-3 hover:bg-bad-soft hover:text-bad"
                   >
                     ×
@@ -209,10 +226,14 @@ export function TagsSheet({
         </ul>
       )}
 
-      <p className="mt-4 rounded-sm border border-accent-line bg-accent-soft px-3 py-2 t-small text-accent">
-        Preview only. Tag edits persist for this session but reset on reload
-        until the DB layer is wired up.
-      </p>
+      {error && (
+        <p
+          className="mt-3 rounded-sm border border-bad bg-bad-soft px-3 py-2 t-small text-bad"
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
     </Sheet>
   );
 }

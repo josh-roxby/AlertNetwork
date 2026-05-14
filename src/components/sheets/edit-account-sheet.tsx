@@ -2,11 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Sheet } from "@/components/sheet";
-import {
-  CATEGORIES,
-  findAccount,
-  type Category,
-} from "@/lib/placeholder-data";
+import { useShell } from "@/components/shell-context";
+import { updateAccount } from "@/lib/data/accounts";
+import { ensureTag, setAccountTags } from "@/lib/data/tags";
 
 export function EditAccountSheet({
   accountId,
@@ -16,20 +14,30 @@ export function EditAccountSheet({
   onClose: () => void;
 }) {
   const open = accountId !== null;
-  const account = accountId ? findAccount(accountId) : null;
+  const {
+    activeProjectId,
+    accounts,
+    categories,
+    refreshAccounts,
+    refreshTags,
+  } = useShell();
+  const account = accountId ? accounts.find((a) => a.id === accountId) : null;
 
-  const [category, setCategory] = useState<Category | "">("");
+  const [categoryId, setCategoryId] = useState<string>("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagDraft, setTagDraft] = useState("");
+  const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState("");
 
-  // Re-seed local form state whenever a new account is selected. The cascade
-  // is intentional — we're syncing form state to a new server-derived source.
+  // Re-seed form state whenever a new account is selected.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!account) return;
-    setCategory(account.category);
-    setTags(account.tags);
+    setCategoryId(account.category_id ?? "");
+    setTags(account.tagLabels);
     setTagDraft("");
+    setStatus("idle");
+    setErrorMessage("");
   }, [account]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -47,27 +55,60 @@ export function EditAccountSheet({
     setTags(tags.filter((x) => x !== t));
   }
 
+  async function save() {
+    if (!account || !activeProjectId) return;
+    setStatus("saving");
+    setErrorMessage("");
+    try {
+      await updateAccount(account.id, {
+        category_id: categoryId || null,
+      });
+
+      // Reconcile tag labels → ids.
+      const tagRows = await Promise.all(
+        tags.map((label) => ensureTag(activeProjectId, label)),
+      );
+      await setAccountTags(
+        account.id,
+        tagRows.map((t) => t.id),
+      );
+
+      await refreshAccounts();
+      await refreshTags();
+      onClose();
+    } catch (err) {
+      setStatus("error");
+      setErrorMessage(
+        err instanceof Error ? err.message : "Couldn't save the changes.",
+      );
+    }
+  }
+
+  const disabled = status === "saving";
+
   return (
     <Sheet
       open={open}
       onClose={onClose}
       title={account ? `Edit ${account.handle}` : "Edit account"}
-      description="Update category and tags. Other fields are managed automatically."
+      description="Update category and tags. Handle and URL stay tied to the source."
       footer={
         <>
           <button
             type="button"
             onClick={onClose}
-            className="tap-btn rounded-sm border border-line-2 bg-surface px-4 py-2.5 t-body font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
+            disabled={disabled}
+            className="tap-btn rounded-sm border border-line-2 bg-surface px-4 py-2.5 t-body font-medium text-ink-2 hover:bg-surface-2 hover:text-ink disabled:opacity-60"
           >
             Cancel
           </button>
           <button
             type="button"
-            disabled
-            className="tap-btn rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={save}
+            disabled={!account || disabled}
+            className="tap-btn rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Save changes
+            {disabled ? "Saving…" : "Save changes"}
           </button>
         </>
       }
@@ -79,12 +120,13 @@ export function EditAccountSheet({
           <label className="mb-4 block">
             <span className="t-micro mb-1.5 block text-ink-3">Category</span>
             <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as Category)}
-              className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink focus:border-accent focus:outline-none"
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              disabled={disabled}
+              className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink focus:border-accent focus:outline-none disabled:opacity-60"
             >
-              <option value="">Pick a category…</option>
-              {CATEGORIES.map((c) => (
+              <option value="">No category</option>
+              {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}
                 </option>
@@ -135,7 +177,8 @@ export function EditAccountSheet({
               }}
               onBlur={commitTag}
               placeholder="Type a tag, press Enter"
-              className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+              disabled={disabled}
+              className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-60"
             />
             <p className="mt-1 t-small text-ink-3">
               Enter or comma to add. Backspace on an empty input removes the
@@ -143,9 +186,14 @@ export function EditAccountSheet({
             </p>
           </div>
 
-          <p className="mt-2 rounded-sm border border-accent-line bg-accent-soft px-3 py-2 t-small text-accent">
-            Preview only. Save is wired up alongside the DB layer.
-          </p>
+          {status === "error" && errorMessage && (
+            <p
+              className="rounded-sm border border-bad bg-bad-soft px-3 py-2 t-small text-bad"
+              role="alert"
+            >
+              {errorMessage}
+            </p>
+          )}
         </>
       )}
     </Sheet>

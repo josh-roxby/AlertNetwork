@@ -1,0 +1,52 @@
+name: daily-scrape
+
+# Daily TikTok scrape across every account in every project. Hits the
+# server-side `/api/cron/daily` route which authenticates via the
+# `CRON_SHARED_SECRET` bearer token and loops accounts using the
+# service-role Supabase client.
+#
+# Required configuration in the GitHub repo:
+#   - Variable `APP_URL` — production URL, e.g.
+#     `https://alertnetwork.vercel.app` (Settings → Secrets and
+#     variables → Actions → Variables tab)
+#   - Secret `CRON_SHARED_SECRET` — same value as Vercel env
+
+on:
+  schedule:
+    # 08:00 UTC every day
+    - cron: "0 8 * * *"
+  # Manual trigger for ad-hoc runs from the Actions tab.
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sanity-check configuration
+        run: |
+          if [ -z "${{ vars.APP_URL }}" ]; then
+            echo "::error::Repository variable APP_URL is not set."
+            exit 1
+          fi
+          if [ -z "${{ secrets.CRON_SHARED_SECRET }}" ]; then
+            echo "::error::Repository secret CRON_SHARED_SECRET is not set."
+            exit 1
+          fi
+
+      - name: Trigger daily scrape
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SHARED_SECRET: ${{ secrets.CRON_SHARED_SECRET }}
+        run: |
+          set -euo pipefail
+          echo "POST ${APP_URL}/api/cron/daily"
+          # --fail-with-body exits non-zero on 4xx/5xx but still prints
+          # the body so the Action log captures any error message.
+          curl --fail-with-body \
+            --silent --show-error \
+            --max-time 300 \
+            --request POST \
+            --header "Authorization: Bearer ${CRON_SHARED_SECRET}" \
+            --header "Content-Type: application/json" \
+            "${APP_URL}/api/cron/daily"

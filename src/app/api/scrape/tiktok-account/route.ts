@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
   }
 
   let scanned = 0;
+  let mappedCount = 0;
   let written = 0;
   try {
     const apifyPosts = await scrapeTikTokUrl({
@@ -96,17 +97,22 @@ export async function POST(request: NextRequest) {
     const mapped = apifyPosts
       .map(mapApifyPost)
       .filter((p): p is NonNullable<typeof p> => p !== null);
+    mappedCount = mapped.length;
     const withinWindow = filterByWindow(mapped, windowHours);
 
     const result = await upsertPosts(admin, account.id, withinWindow);
     written = result.written;
 
     await bumpAccountLastScraped(admin, account.id);
+
+    // Server logs make Vercel function logs diagnosable without
+    // having to add app-level telemetry yet.
+    console.info(
+      `[scrape] account=${account.id} scanned=${scanned} mapped=${mappedCount} withinWindow=${withinWindow.length} wrote=${written} window=${windowHours}h`,
+    );
   } catch (err) {
-    // Even on Apify failure, the account row still exists. Surface
-    // the error so the user-side fire-and-forget can log it, but
-    // don't try to roll back state.
     const message = err instanceof Error ? err.message : "scrape failed";
+    console.error(`[scrape] account=${account.id} failed: ${message}`);
     return NextResponse.json(
       { error: message, scanned, written },
       { status: 502 },

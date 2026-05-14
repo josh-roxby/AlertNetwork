@@ -48,3 +48,19 @@ export type AccountView = AccountRow & {
   category: CategoryRow | null;
   tagLabels: string[];
 };
+
+export type ReportRow = {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string | null;
+  cadence: "weekly" | "monthly";
+  schedule: string | null;
+  scope_kind: "project" | "category" | "account";
+  status: string;
+  is_featured: boolean;
+  password_hash: string | null;
+  last_sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+};

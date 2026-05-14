@@ -178,6 +178,12 @@
 html,
 body {
   height: 100%;
+  /* Belt + braces on horizontal overflow. The shell already caps
+     content width per breakpoint, but any single child that exceeds
+     its parent would otherwise force the whole viewport to scroll
+     sideways. Vertical scroll is preserved. */
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 body {

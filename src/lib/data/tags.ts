@@ -59,3 +59,36 @@ export async function setAccountTags(
   const { error: insError } = await supabase.from("account_tags").insert(rows);
   if (insError) throw insError;
 }
+
+export async function createTag(
+  projectId: string,
+  label: string,
+): Promise<TagRow> {
+  const trimmed = label.trim().replace(/^#/, "");
+  if (!trimmed) throw new Error("Tag label cannot be empty");
+  const supabase = supabaseBrowser();
+  const { data, error } = await supabase
+    .from("tags")
+    .insert({ project_id: projectId, label: trimmed })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as TagRow;
+}
+
+export async function renameTag(id: string, label: string): Promise<void> {
+  const trimmed = label.trim().replace(/^#/, "");
+  if (!trimmed) throw new Error("Tag label cannot be empty");
+  const supabase = supabaseBrowser();
+  const { error } = await supabase
+    .from("tags")
+    .update({ label: trimmed })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteTag(id: string): Promise<void> {
+  const supabase = supabaseBrowser();
+  const { error } = await supabase.from("tags").delete().eq("id", id);
+  if (error) throw error;
+}
