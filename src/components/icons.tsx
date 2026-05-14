@@ -144,3 +144,12 @@ export function IconArrowDown(props: IconProps) {
     </svg>
   );
 }
+
+export function IconEye(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M2 10s2.8-5 8-5 8 5 8 5-2.8 5-8 5-8-5-8-5z" />
+      <circle cx="10" cy="10" r="2.5" />
+    </svg>
+  );
+}

@@ -10,11 +10,8 @@ import {
   useActiveProject,
   useShell,
 } from "@/components/shell-context";
-import {
-  AddAccountSheet,
-  NewReportSheet,
-  TeamSheet,
-} from "@/components/sheets";
+import { AddAccountSheet, TeamSheet } from "@/components/sheets";
+import { NewReportSheet } from "@/components/sheets/new-report-sheet";
 import { CategoriesSheet } from "@/components/sheets/categories-sheet";
 import { TagsSheet } from "@/components/sheets/tags-sheet";
 import { EditAccountSheet } from "@/components/sheets/edit-account-sheet";
