@@ -61,7 +61,7 @@ const mobileStyle = { bottom: 16, right: 12 } as const;
 
 const desktopClassName =
   "tap-fab fixed z-[var(--z-fab)] hidden h-[46px] w-[46px] items-center justify-center rounded-xs bg-accent text-[#0A0A0A] shadow-[var(--sh-fab)] transition-colors duration-[120ms] hover:bg-accent-dim lg:inline-flex";
-const desktopStyle = { bottom: 4, right: 4 } as const;
+const desktopStyle = { bottom: 12, right: 24 } as const;
 
 function FabBase({
   surface,
