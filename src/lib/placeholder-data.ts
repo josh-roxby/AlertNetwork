@@ -374,8 +374,111 @@ export function findReport(id: string) {
   return placeholderReports.find((r) => r.id === id) ?? null;
 }
 
+export function findAccount(id: string) {
+  return placeholderAccounts.find((a) => a.id === id) ?? null;
+}
+
 export function accountsForReport(report: Report) {
   return report.accountIds
     .map((id) => placeholderAccounts.find((a) => a.id === id))
     .filter((a): a is Account => Boolean(a));
+}
+
+// Deterministic seeded PRNG so chart data is stable across renders.
+function mulberry32(seed: number) {
+  let s = seed >>> 0;
+  return function () {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function seedFromString(s: string) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+export type AccountSeriesPoint = {
+  date: string; // ISO date (UTC midnight) for the day
+  views: number;
+  medianViews: number;
+  engagement: number; // 0..1
+  followers: number;
+  health: number; // 0..100
+};
+
+/**
+ * Returns one data point per day for the past `days` days, ending today.
+ * Deterministic per account (seeded by account id) so the same chart shape
+ * renders on every visit.
+ */
+export function accountTimeSeries(
+  account: Account,
+  days = 90,
+  now: Date = new Date(),
+): AccountSeriesPoint[] {
+  const rng = mulberry32(seedFromString(account.id));
+  const points: AccountSeriesPoint[] = [];
+
+  // Long-run drift target so values approach the current ones as date → now.
+  const target = {
+    views: account.medianViews,
+    medianViews: account.medianViews,
+    engagement: account.engagementRatio,
+    followers: account.followers,
+    health: account.healthScore,
+  };
+
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCDate(d.getUTCDate() - i);
+
+    // 0 at start, 1 at end of window — controls drift toward target.
+    const t = 1 - i / (days - 1);
+    // Smooth seasonal wobble + per-day noise.
+    const wave = Math.sin((i / days) * Math.PI * 4) * 0.06;
+    const noise = (rng() - 0.5) * 0.18;
+
+    // Views fluctuate more than followers or engagement.
+    const viewSwing = 1 + wave * 2 + noise;
+    const medianSwing = 1 + wave + noise * 0.6;
+    const erSwing = 1 + wave * 0.5 + noise * 0.4;
+    const followerStart = target.followers * 0.85;
+    const healthSwing = wave * 12 + noise * 18;
+
+    const followers = Math.round(
+      followerStart + (target.followers - followerStart) * t,
+    );
+
+    points.push({
+      date: d.toISOString().slice(0, 10),
+      views: Math.max(
+        0,
+        Math.round(target.views * 0.6 + target.views * 0.6 * viewSwing),
+      ),
+      medianViews: Math.max(
+        0,
+        Math.round(target.medianViews * 0.8 + target.medianViews * 0.4 * medianSwing),
+      ),
+      engagement: Math.max(
+        0.005,
+        target.engagement * (0.85 + 0.3 * erSwing),
+      ),
+      followers,
+      health: Math.max(
+        0,
+        Math.min(100, Math.round(target.health + healthSwing * (1 - t * 0.5))),
+      ),
+    });
+  }
+
+  return points;
 }
