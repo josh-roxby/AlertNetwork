@@ -1,10 +1,24 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import { Chip } from "@/components/chip";
 import { FilterStrip } from "@/components/filter-strip";
 import { AccountRow } from "@/components/account-row";
+import { AddAccountTile } from "@/components/add-account-tile";
+import { MetricLegend } from "@/components/metric-legend";
 import { IconSearch } from "@/components/icons";
-import { CATEGORIES, placeholderAccounts } from "@/lib/placeholder-data";
+import {
+  AccountsFilterSheet,
+  DEFAULT_FILTERS,
+  type AccountFilters,
+} from "@/components/accounts-filter-sheet";
+import {
+  CATEGORIES,
+  placeholderAccounts,
+  type Category,
+} from "@/lib/placeholder-data";
 
-const CATEGORY_DOT: Record<string, string> = {
+const CATEGORY_DOT: Record<Category, string> = {
   fashion: "bg-cat-fashion",
   food: "bg-cat-food",
   beauty: "bg-cat-beauty",
@@ -16,13 +30,35 @@ const CATEGORY_DOT: Record<string, string> = {
 };
 
 export default function AccountsPage() {
-  const byCategory = placeholderAccounts.reduce(
-    (acc, a) => {
-      acc[a.category] = (acc[a.category] ?? 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>,
+  const [filters, setFilters] = useState<AccountFilters>(DEFAULT_FILTERS);
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  const filtered = useMemo(() => {
+    return placeholderAccounts.filter((a) => {
+      if (a.healthScore < filters.healthMin) return false;
+      if (a.healthScore > filters.healthMax) return false;
+      if (filters.categories.size > 0 && !filters.categories.has(a.category)) {
+        return false;
+      }
+      return true;
+    });
+  }, [filters]);
+
+  const byCategory = useMemo(
+    () =>
+      placeholderAccounts.reduce(
+        (acc, a) => {
+          acc[a.category] = (acc[a.category] ?? 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      ),
+    [],
   );
+
+  const activeFilterCount =
+    (filters.healthMin !== 0 || filters.healthMax !== 100 ? 1 : 0) +
+    (filters.categories.size > 0 ? 1 : 0);
 
   return (
     <>
@@ -34,29 +70,66 @@ export default function AccountsPage() {
       </section>
 
       <section className="mb-4">
-        <label className="relative block">
-          <span
-            aria-hidden
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3"
+        <div className="flex items-center gap-2">
+          <label className="relative flex-1">
+            <span
+              aria-hidden
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3"
+            >
+              <IconSearch />
+            </span>
+            <input
+              type="search"
+              disabled
+              placeholder="Search handles, tags, categories…"
+              className="h-10 w-full rounded-full border border-line bg-surface-2 pl-10 pr-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-90"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => setFilterOpen(true)}
+            aria-label="Filter accounts"
+            className={`tap-btn relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors duration-[120ms] ${
+              activeFilterCount > 0
+                ? "border-accent-line bg-accent-soft text-accent"
+                : "border-line-2 bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink"
+            }`}
           >
-            <IconSearch />
-          </span>
-          <input
-            type="search"
-            disabled
-            placeholder="Search handles, tags, categories…"
-            className="h-10 w-full rounded-full border border-line bg-surface-2 pl-10 pr-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-90"
-          />
-        </label>
+            <FilterGlyph />
+            {activeFilterCount > 0 && (
+              <span
+                aria-hidden
+                className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-[#0A0A0A]"
+                data-numeric
+              >
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        </div>
       </section>
 
       <section className="mb-4">
         <FilterStrip>
-          <Chip active count={placeholderAccounts.length}>
+          <Chip
+            active={filters.categories.size === 0}
+            count={placeholderAccounts.length}
+            onClick={() => setFilters({ ...filters, categories: new Set() })}
+          >
             All
           </Chip>
           {CATEGORIES.map((c) => (
-            <Chip key={c.id} count={byCategory[c.id] ?? 0}>
+            <Chip
+              key={c.id}
+              active={filters.categories.has(c.id)}
+              count={byCategory[c.id] ?? 0}
+              onClick={() => {
+                const next = new Set(filters.categories);
+                if (next.has(c.id)) next.delete(c.id);
+                else next.add(c.id);
+                setFilters({ ...filters, categories: next });
+              }}
+            >
               <span className="inline-flex items-center gap-1.5">
                 <span
                   aria-hidden
@@ -72,7 +145,7 @@ export default function AccountsPage() {
       <section>
         <div className="mb-2 flex items-center justify-between px-1">
           <span data-numeric className="t-small text-ink-2">
-            {placeholderAccounts.length} accounts
+            {filtered.length} of {placeholderAccounts.length}
           </span>
           <button
             type="button"
@@ -81,16 +154,61 @@ export default function AccountsPage() {
             Sort · Health ↓
           </button>
         </div>
-        <ul className="flex flex-col gap-2">
-          {[...placeholderAccounts]
-            .sort((a, b) => b.healthScore - a.healthScore)
-            .map((a) => (
-              <li key={a.id}>
-                <AccountRow account={a} />
-              </li>
-            ))}
-        </ul>
+        <div className="mb-2 px-1">
+          <MetricLegend />
+        </div>
+        {filtered.length === 0 ? (
+          <div className="rounded-md border border-line bg-surface px-3 py-6 text-center">
+            <p className="t-body text-ink-2">No accounts match those filters.</p>
+            <button
+              type="button"
+              onClick={() => setFilters(DEFAULT_FILTERS)}
+              className="tap-btn mt-2 t-micro text-accent hover:opacity-80"
+            >
+              Reset filters
+            </button>
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {[...filtered]
+              .sort((a, b) => b.healthScore - a.healthScore)
+              .map((a) => (
+                <li key={a.id}>
+                  <AccountRow account={a} />
+                </li>
+              ))}
+            <li>
+              <AddAccountTile />
+            </li>
+          </ul>
+        )}
       </section>
+
+      <AccountsFilterSheet
+        open={filterOpen}
+        filters={filters}
+        onChange={setFilters}
+        onApply={() => setFilterOpen(false)}
+        onReset={() => setFilters(DEFAULT_FILTERS)}
+        onClose={() => setFilterOpen(false)}
+      />
     </>
+  );
+}
+
+function FilterGlyph() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 18 18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      aria-hidden
+    >
+      <path d="M3 5h12M5 9h8M7 13h4" />
+    </svg>
   );
 }

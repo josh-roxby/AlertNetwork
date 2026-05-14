@@ -376,6 +376,48 @@ body {
   scrollbar-width: none;
 }
 
+/* Dual-thumb range slider — used in the Accounts filter sheet. Each
+ * <input type="range"> stacks transparently on top of the shared track;
+ * only the thumbs are visible and pointer-active. */
+.range-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 24px;
+}
+.range-thumb::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 24px;
+}
+.range-thumb::-moz-range-track {
+  background: transparent;
+  height: 24px;
+}
+.range-thumb::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--ink);
+  border: 2px solid var(--bg);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+.range-thumb::-moz-range-thumb {
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--ink);
+  border: 2px solid var(--bg);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+.range-thumb:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

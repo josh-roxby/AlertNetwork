@@ -1,4 +1,4 @@
-import { type Account } from "@/lib/placeholder-data";
+import { type Account, type Tier } from "@/lib/placeholder-data";
 import { compactNumber, percent, relativeDate } from "@/lib/format";
 import { healthBand } from "@/components/health-score";
 
@@ -25,12 +25,21 @@ const CATEGORY_LABEL: Record<Account["category"], string> = {
 };
 
 const BAND_TONE = {
-  excellent: "text-accent",
+  excellent: "text-ink",
   strong: "text-ink",
   watching: "text-ink-2",
   weak: "text-ink-3",
   critical: "text-bad",
 } as const;
+
+// How the trend delta should be read. Comparison window follows the
+// monitoring tier — daily accounts trend day-over-day, weekly accounts
+// week-over-week, etc.
+const TREND_WINDOW: Record<Tier, string> = {
+  daily: "WoW",
+  weekly: "MoM",
+  hourly: "DoD",
+};
 
 export function AccountRow({ account }: { account: Account }) {
   const band = healthBand(account.healthScore);
@@ -69,19 +78,24 @@ export function AccountRow({ account }: { account: Account }) {
         </span>
         <span
           data-numeric
-          className="mt-0.5 flex items-center gap-1.5 text-[10px] text-ink-3"
+          className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0 text-[10px] text-ink-3"
         >
-          <span>{compactNumber(account.medianViews)}</span>
-          <span className="text-ink-4">·</span>
-          <span>{percent(account.engagementRatio, 1)}</span>
-          <span className="text-ink-4">·</span>
+          <Metric prefix="Med" value={compactNumber(account.medianViews)} />
+          <Sep />
+          <Metric prefix="Tot" value={compactNumber(account.totalViews)} />
+          <Sep />
+          <Metric
+            prefix="ER"
+            value={percent(account.engagementRatio, 1)}
+          />
+          <Sep />
           <span>{CATEGORY_LABEL[account.category]}</span>
-          <span className="text-ink-4">·</span>
+          <Sep />
           <span>{relativeDate(account.lastLoggedAt)}</span>
         </span>
       </span>
 
-      <span className="flex shrink-0 flex-col items-end" style={{ minWidth: 48 }}>
+      <span className="flex shrink-0 flex-col items-end" style={{ minWidth: 56 }}>
         <span
           data-numeric
           className={`t-display-3 leading-none ${BAND_TONE[band]}`}
@@ -89,15 +103,41 @@ export function AccountRow({ account }: { account: Account }) {
           {account.healthScore}
         </span>
         <span
-          data-numeric
-          className={`mt-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+          className={`mt-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
             trendUp ? "bg-good-soft text-good" : "bg-bad-soft text-bad"
           }`}
         >
-          {trendUp ? "↑" : "↓"}
-          {Math.abs(account.trendDelta).toFixed(1)}
+          <span data-numeric>
+            {trendUp ? "↑" : "↓"}
+            {Math.abs(account.trendDelta).toFixed(1)}
+          </span>
+          <span
+            className="opacity-70"
+            style={{ fontSize: 8, fontWeight: 600, letterSpacing: "0.05em" }}
+          >
+            {TREND_WINDOW[account.tier]}
+          </span>
         </span>
       </span>
     </button>
+  );
+}
+
+function Metric({ prefix, value }: { prefix: string; value: string }) {
+  return (
+    <span className="inline-flex items-baseline gap-0.5">
+      <span className="text-ink-4" style={{ fontWeight: 600 }}>
+        {prefix}
+      </span>
+      <span className="text-ink-2">{value}</span>
+    </span>
+  );
+}
+
+function Sep() {
+  return (
+    <span aria-hidden className="text-ink-4">
+      ·
+    </span>
   );
 }

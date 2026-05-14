@@ -3,6 +3,8 @@ import { StatsGrid, type Stat } from "@/components/stats-grid";
 import { Chip, ChipDivider } from "@/components/chip";
 import { FilterStrip } from "@/components/filter-strip";
 import { AccountRow } from "@/components/account-row";
+import { AddAccountTile } from "@/components/add-account-tile";
+import { MetricLegend } from "@/components/metric-legend";
 import { FeaturedReports } from "@/components/featured-reports";
 import {
   CATEGORIES,
@@ -131,6 +133,9 @@ export default function DashboardPage() {
             See all →
           </Link>
         </div>
+        <div className="mb-2 px-1">
+          <MetricLegend />
+        </div>
         <ul className="flex flex-col gap-2">
           {[...accounts]
             .sort((a, b) => b.healthScore - a.healthScore)
@@ -139,6 +144,9 @@ export default function DashboardPage() {
                 <AccountRow account={a} />
               </li>
             ))}
+          <li>
+            <AddAccountTile />
+          </li>
         </ul>
       </section>
     </>
@@ -161,13 +169,11 @@ function TopHealthTile({
     <div className="rounded-md border border-accent-line bg-accent-soft p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="t-micro text-accent" style={{ opacity: 0.85 }}>
-            Top health
-          </div>
+          <div className="t-micro text-ink-3">Top health</div>
           <div className="mt-1 flex items-baseline gap-2">
             <span
               data-numeric
-              className="leading-none text-accent"
+              className="leading-none text-ink"
               style={{
                 fontFamily: "var(--font-unbounded)",
                 fontWeight: 800,

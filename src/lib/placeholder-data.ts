@@ -39,6 +39,7 @@ export type Account = {
   category: Category;
   followers: number;
   medianViews: number;
+  totalViews: number;
   engagementRatio: number;
   postsPerCycle: number;
   healthScore: number;
@@ -92,6 +93,7 @@ export const placeholderAccounts: Account[] = [
     category: "music",
     followers: 184_000,
     medianViews: 42_500,
+    totalViews: 2_120_000,
     engagementRatio: 0.071,
     postsPerCycle: 1.2,
     healthScore: 82,
@@ -109,6 +111,7 @@ export const placeholderAccounts: Account[] = [
     category: "food",
     followers: 612_000,
     medianViews: 128_000,
+    totalViews: 18_800_000,
     engagementRatio: 0.054,
     postsPerCycle: 0.8,
     healthScore: 74,
@@ -126,6 +129,7 @@ export const placeholderAccounts: Account[] = [
     category: "sports",
     followers: 39_500,
     medianViews: 11_200,
+    totalViews: 420_000,
     engagementRatio: 0.092,
     postsPerCycle: 3.4,
     healthScore: 68,
@@ -143,6 +147,7 @@ export const placeholderAccounts: Account[] = [
     category: "music",
     followers: 92_300,
     medianViews: 18_800,
+    totalViews: 1_540_000,
     engagementRatio: 0.041,
     postsPerCycle: 0.9,
     healthScore: 51,
@@ -160,6 +165,7 @@ export const placeholderAccounts: Account[] = [
     category: "music",
     followers: 1_240_000,
     medianViews: 305_000,
+    totalViews: 86_400_000,
     engagementRatio: 0.038,
     postsPerCycle: 0.6,
     healthScore: 79,
@@ -177,6 +183,7 @@ export const placeholderAccounts: Account[] = [
     category: "lifestyle",
     followers: 22_100,
     medianViews: 6_400,
+    totalViews: 220_000,
     engagementRatio: 0.118,
     postsPerCycle: 2.1,
     healthScore: 64,
@@ -194,6 +201,7 @@ export const placeholderAccounts: Account[] = [
     category: "beauty",
     followers: 268_000,
     medianViews: 51_300,
+    totalViews: 5_640_000,
     engagementRatio: 0.063,
     postsPerCycle: 1.1,
     healthScore: 88,
@@ -211,6 +219,7 @@ export const placeholderAccounts: Account[] = [
     category: "tech",
     followers: 73_400,
     medianViews: 15_600,
+    totalViews: 740_000,
     engagementRatio: 0.048,
     postsPerCycle: 1.4,
     healthScore: 35,
