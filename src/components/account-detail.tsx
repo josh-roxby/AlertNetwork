@@ -49,12 +49,6 @@ const BAND_LABEL = {
   critical: "Critical",
 } as const;
 
-const TIER_LABEL: Record<Account["tier"], string> = {
-  daily: "Daily",
-  weekly: "Weekly",
-  hourly: "Hourly",
-};
-
 type Range = "7d" | "30d" | "90d";
 const RANGE_DAYS: Record<Range, number> = { "7d": 7, "30d": 30, "90d": 90 };
 
@@ -103,15 +97,6 @@ export function AccountDetail({
       </section>
 
       <section className="mb-4 flex flex-wrap items-center gap-1.5">
-        <Chip>
-          <span
-            aria-hidden
-            className={`inline-block h-1.5 w-1.5 rounded-full ${
-              account.tier === "daily" ? "pulse-dot bg-accent" : "bg-ink-3"
-            }`}
-          />
-          {TIER_LABEL[account.tier]}
-        </Chip>
         <Chip>
           <span
             aria-hidden
