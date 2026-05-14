@@ -7,6 +7,7 @@ import { AccountRow } from "@/components/account-row";
 import { Star } from "@/components/featured-reports";
 import { ScopeControl } from "@/components/scope-control";
 import {
+  adaptPlaceholderToView,
   placeholderAccounts,
   type Account,
   type Category,
@@ -228,7 +229,7 @@ function RecentTab({
         <ul className="flex flex-col gap-2">
           {top.map((a) => (
             <li key={a.id}>
-              <AccountRow account={a} />
+              <AccountRow account={adaptPlaceholderToView(a)} />
             </li>
           ))}
         </ul>
@@ -245,7 +246,7 @@ function RecentTab({
           <ul className="flex flex-col gap-2">
             {movers.map((a) => (
               <li key={a.id}>
-                <AccountRow account={a} />
+                <AccountRow account={adaptPlaceholderToView(a)} />
               </li>
             ))}
           </ul>
@@ -828,7 +829,7 @@ function ByCategorySection({ accounts }: { accounts: Account[] }) {
             <ul className="flex flex-col">
               {g.items.map((a) => (
                 <li key={a.id} className="border-b border-line last:border-b-0">
-                  <AccountRow account={a} />
+                  <AccountRow account={adaptPlaceholderToView(a)} />
                 </li>
               ))}
             </ul>

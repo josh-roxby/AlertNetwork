@@ -1,34 +1,27 @@
 "use client";
 
-import { Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useShell, useActiveProject } from "@/components/shell-context";
-import { placeholderProjects } from "@/lib/placeholder-data";
 import { relativeDate } from "@/lib/format";
 import { IconChevronRight, IconPlus } from "@/components/icons";
 
 export default function ProjectsPage() {
-  return (
-    <Suspense fallback={null}>
-      <ProjectsView />
-    </Suspense>
-  );
-}
-
-function ProjectsView() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { setActiveProjectId, openSheet } = useShell();
+  const { setActiveProjectId, openSheet, projects, projectsLoading } =
+    useShell();
   const active = useActiveProject();
-
-  // ?empty=1 triggers the empty state for demo purposes. Real "empty"
-  // happens when the DB returns 0 projects for the user.
-  const forceEmpty = searchParams.get("empty") === "1";
-  const projects = forceEmpty ? [] : placeholderProjects;
 
   function switchTo(id: string) {
     setActiveProjectId(id);
     router.push("/dashboard");
+  }
+
+  if (projectsLoading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-ink-3">
+        <span className="t-small">Loading projects…</span>
+      </div>
+    );
   }
 
   if (projects.length === 0) {
@@ -53,11 +46,6 @@ function ProjectsView() {
           <IconPlus stroke="#0A0A0A" />
           Add project
         </button>
-        {forceEmpty && (
-          <p className="mt-6 t-meta text-ink-3" style={{ fontSize: 10 }}>
-            (Demo: remove <code>?empty=1</code> to see the project list.)
-          </p>
-        )}
       </div>
     );
   }
@@ -119,17 +107,17 @@ function ProjectsView() {
                       </span>
                     )}
                   </span>
-                  <span className="mt-1 block t-small text-ink-2">
-                    {p.description}
-                  </span>
+                  {p.description && (
+                    <span className="mt-1 block t-small text-ink-2">
+                      {p.description}
+                    </span>
+                  )}
                   <span
                     data-numeric
                     className="mt-2 flex items-center gap-2 text-ink-3"
                     style={{ fontSize: 11, fontFamily: "var(--font-mono)" }}
                   >
-                    <span>{p.accountCount} accounts</span>
-                    <span className="text-ink-4">·</span>
-                    <span>Updated {relativeDate(p.updatedAt)}</span>
+                    <span>Updated {relativeDate(p.updated_at)}</span>
                   </span>
                 </span>
                 <IconChevronRight className="mt-1 shrink-0 text-ink-3" />

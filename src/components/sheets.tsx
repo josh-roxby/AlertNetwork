@@ -2,43 +2,8 @@
 
 import { useState } from "react";
 import { Sheet } from "@/components/sheet";
-import { CATEGORIES, placeholderProjects } from "@/lib/placeholder-data";
-
-function FooterButtons({
-  onClose,
-  cta,
-}: {
-  onClose: () => void;
-  cta: string;
-}) {
-  return (
-    <>
-      <button
-        type="button"
-        onClick={onClose}
-        className="tap-btn rounded-sm border border-line-2 bg-surface px-4 py-2.5 t-body font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
-      >
-        Cancel
-      </button>
-      <button
-        type="button"
-        disabled
-        className="tap-btn rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {cta}
-      </button>
-    </>
-  );
-}
-
-function PreviewNote() {
-  return (
-    <p className="mt-2 rounded-sm border border-accent-line bg-accent-soft px-3 py-2 t-small text-accent">
-      Preview only. Submission is disabled until the API and DB layer are
-      wired up.
-    </p>
-  );
-}
+import { useShell } from "@/components/shell-context";
+import { createAccount, parseTikTokHandle } from "@/lib/data/accounts";
 
 const NEW_CATEGORY_OPTION = "__new__";
 
@@ -49,11 +14,15 @@ export function AddAccountSheet({
   open: boolean;
   onClose: () => void;
 }) {
+  const { activeProjectId, categories, refreshCategories, refreshAccounts } =
+    useShell();
   const [url, setUrl] = useState("");
   const [category, setCategory] = useState<string>("");
   const [newCategoryName, setNewCategoryName] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagDraft, setTagDraft] = useState("");
+  const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const showCategoryCreate = category === NEW_CATEGORY_OPTION;
 
@@ -78,7 +47,56 @@ export function AddAccountSheet({
     setNewCategoryName("");
     setTags([]);
     setTagDraft("");
+    setStatus("idle");
+    setErrorMessage("");
   }
+
+  async function submit() {
+    if (!activeProjectId) {
+      setStatus("error");
+      setErrorMessage("Pick an active project first.");
+      return;
+    }
+    if (!url.trim()) return;
+    if (!parseTikTokHandle(url)) {
+      setStatus("error");
+      setErrorMessage("That doesn't look like a TikTok profile URL.");
+      return;
+    }
+
+    setStatus("saving");
+    setErrorMessage("");
+
+    try {
+      await createAccount({
+        projectId: activeProjectId,
+        url: url.trim(),
+        categoryId:
+          category && category !== NEW_CATEGORY_OPTION ? category : undefined,
+        newCategoryLabel:
+          category === NEW_CATEGORY_OPTION ? newCategoryName : undefined,
+        tagLabels: tags,
+      });
+      if (category === NEW_CATEGORY_OPTION) {
+        await refreshCategories();
+      }
+      await refreshAccounts();
+      reset();
+      onClose();
+    } catch (err) {
+      setStatus("error");
+      setErrorMessage(
+        err instanceof Error ? err.message : "Couldn't add the account.",
+      );
+    }
+  }
+
+  const disabled = status === "saving";
+  const canSubmit =
+    !!activeProjectId &&
+    !!url.trim() &&
+    !disabled &&
+    (category !== NEW_CATEGORY_OPTION || !!newCategoryName.trim());
 
   return (
     <Sheet
@@ -89,7 +107,29 @@ export function AddAccountSheet({
       }}
       title="Add account"
       description="Paste a TikTok URL — handle is detected automatically."
-      footer={<FooterButtons onClose={onClose} cta="Add to project" />}
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              reset();
+              onClose();
+            }}
+            disabled={disabled}
+            className="tap-btn rounded-sm border border-line-2 bg-surface px-4 py-2.5 t-body font-medium text-ink-2 hover:bg-surface-2 hover:text-ink disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!canSubmit}
+            className="tap-btn rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {disabled ? "Adding…" : "Add to project"}
+          </button>
+        </>
+      }
     >
       <label className="mb-4 block">
         <span className="t-micro mb-1.5 block text-ink-3">Profile URL</span>
@@ -98,7 +138,8 @@ export function AddAccountSheet({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://www.tiktok.com/@northlight"
-          className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+          disabled={disabled}
+          className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-60"
         />
       </label>
 
@@ -107,10 +148,11 @@ export function AddAccountSheet({
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink focus:border-accent focus:outline-none"
+          disabled={disabled}
+          className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink focus:border-accent focus:outline-none disabled:opacity-60"
         >
           <option value="">Pick a category…</option>
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
             </option>
@@ -124,13 +166,13 @@ export function AddAccountSheet({
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
               placeholder="New category name"
-              className="h-10 w-full rounded-xs border border-line-2 bg-bg px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+              disabled={disabled}
+              className="h-10 w-full rounded-xs border border-line-2 bg-bg px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-60"
               autoFocus
             />
             <p className="mt-1.5 t-small text-ink-3">
-              Categories are workspace-wide. Pick a colour from the fixed
-              palette in Settings → Tags &amp; categories once a category
-              manager exists (Round 3).
+              Categories are scoped to this project. A palette is assigned
+              automatically — manage colours from Settings later.
             </p>
           </div>
         )}
@@ -179,15 +221,20 @@ export function AddAccountSheet({
           }}
           onBlur={commitTag}
           placeholder="Type a tag, press Enter"
-          className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+          disabled={disabled}
+          className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-60"
         />
         <p className="mt-1 t-small text-ink-3">
-          Enter or comma to add. Backspace on an empty input removes the
-          last tag.
+          Enter or comma to add. Backspace on an empty input removes the last
+          tag.
         </p>
       </div>
 
-      <PreviewNote />
+      {status === "error" && errorMessage && (
+        <p className="mt-2 rounded-sm border border-bad bg-bad-soft px-3 py-2 t-small text-bad" role="alert">
+          {errorMessage}
+        </p>
+      )}
     </Sheet>
   );
 }
@@ -212,125 +259,15 @@ export function TeamSheet({
             onClick={onClose}
             className="tap-btn rounded-sm border border-line-2 bg-surface px-4 py-2.5 t-body font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
           >
-            Copy invite link
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="tap-btn rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
-          >
-            Done
+            Close
           </button>
         </>
       }
     >
-      <section className="mb-5">
-        <h3 className="t-micro mb-2 text-ink-3">Members</h3>
-        <TeamRow
-          initials="JR"
-          name="Josh Roxby"
-          email="josh@exhalestudios.co"
-          role="Owner"
-          tone="owner"
-        />
-      </section>
-
-      <section className="mb-5">
-        <h3 className="t-micro mb-2 text-ink-3">Report viewers</h3>
-        <TeamRow
-          initials="SR"
-          name="Sarah Reed"
-          email="sarah@studio.com"
-          role="Viewer"
-          tone="viewer"
-          removable
-        />
-      </section>
-
-      <section>
-        <h3 className="t-micro mb-2 text-ink-3">Invite by email</h3>
-        <div className="flex gap-2">
-          <input
-            disabled
-            type="email"
-            placeholder="name@example.com"
-            className="h-10 flex-1 rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-70"
-          />
-          <button
-            type="button"
-            disabled
-            className="tap-btn rounded-sm bg-accent px-3 t-body font-semibold text-[#0A0A0A] disabled:opacity-50"
-          >
-            Send invite
-          </button>
-        </div>
-        <p className="mt-1.5 t-small text-ink-3">
-          Invited users join as Viewers by default. Promote to Member from
-          their row.
-        </p>
-        <PreviewNote />
-      </section>
+      <p className="rounded-sm border border-accent-line bg-accent-soft px-3 py-2 t-small text-accent">
+        Single-owner workspaces in v1. Team membership and invites land in a
+        later round.
+      </p>
     </Sheet>
   );
-}
-
-function TeamRow({
-  initials,
-  name,
-  email,
-  role,
-  tone,
-  removable = false,
-}: {
-  initials: string;
-  name: string;
-  email: string;
-  role: string;
-  tone: "owner" | "viewer";
-  removable?: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-md border border-line bg-surface px-3 py-3">
-      <span
-        aria-hidden
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold ring-1 ring-line-2 ${
-          tone === "owner"
-            ? "bg-accent text-[#0A0A0A] ring-accent-line"
-            : "bg-surface-3 text-ink"
-        }`}
-      >
-        {initials}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block t-body font-medium text-ink">{name}</span>
-        <span className="block t-small truncate text-ink-3">{email}</span>
-      </span>
-      <span
-        className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 ${
-          tone === "owner"
-            ? "bg-accent-soft text-accent"
-            : "bg-surface-3 text-ink-3"
-        }`}
-        style={{ fontSize: 10, fontWeight: 600 }}
-      >
-        {role}
-      </span>
-      {removable && (
-        <button
-          type="button"
-          aria-label={`Remove ${name}`}
-          className="tap-btn -mr-1 inline-flex h-8 w-8 items-center justify-center rounded-sm text-ink-3 hover:bg-surface-2 hover:text-ink"
-        >
-          ×
-        </button>
-      )}
-    </div>
-  );
-}
-
-export function projectsExportPreview() {
-  // Placeholder export used by the drawer's project card if we wire a real
-  // switcher later. Keeps the placeholder data import meaningful for tree-
-  // shaking checks.
-  return placeholderProjects.length;
 }

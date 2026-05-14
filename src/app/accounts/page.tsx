@@ -6,33 +6,14 @@ import { Chip } from "@/components/chip";
 import { FilterStrip } from "@/components/filter-strip";
 import { AccountRow } from "@/components/account-row";
 import { AddAccountTile } from "@/components/add-account-tile";
-import { MetricLegend } from "@/components/metric-legend";
-import { IconSearch } from "@/components/icons";
+import { IconPlus, IconSearch } from "@/components/icons";
 import {
   AccountsFilterSheet,
   DEFAULT_FILTERS,
   type AccountFilters,
 } from "@/components/accounts-filter-sheet";
-import {
-  CATEGORIES,
-  placeholderAccounts,
-  type Category,
-} from "@/lib/placeholder-data";
-
-const CATEGORY_DOT: Record<Category, string> = {
-  fashion: "bg-cat-fashion",
-  food: "bg-cat-food",
-  beauty: "bg-cat-beauty",
-  tech: "bg-cat-tech",
-  sports: "bg-cat-sports",
-  music: "bg-cat-music",
-  travel: "bg-cat-travel",
-  lifestyle: "bg-cat-lifestyle",
-};
-
-function isCategory(v: string | null): v is Category {
-  return !!v && CATEGORIES.some((c) => c.id === v);
-}
+import { useShell } from "@/components/shell-context";
+import { paletteBg } from "@/lib/data/palette";
 
 export default function AccountsPage() {
   return (
@@ -45,49 +26,72 @@ export default function AccountsPage() {
 function AccountsView() {
   const searchParams = useSearchParams();
   const categoryParam = searchParams.get("category");
-  const initialFilters: AccountFilters = isCategory(categoryParam)
-    ? { ...DEFAULT_FILTERS, categories: new Set([categoryParam]) }
-    : DEFAULT_FILTERS;
-  const [filters, setFilters] = useState<AccountFilters>(initialFilters);
+  const {
+    activeProjectId,
+    categories,
+    accounts,
+    accountsLoading,
+    openSheet,
+  } = useShell();
+
+  const [filters, setFilters] = useState<AccountFilters>(() =>
+    categoryParam
+      ? { categoryIds: new Set([categoryParam]) }
+      : DEFAULT_FILTERS,
+  );
   const [filterOpen, setFilterOpen] = useState(false);
 
-  // If the URL category param changes after mount (drawer link), apply it.
+  // Drawer / sidebar category deep-links can change after mount.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (!isCategory(categoryParam)) return;
+    if (!categoryParam) return;
     setFilters((prev) => ({
       ...prev,
-      categories: new Set([categoryParam]),
+      categoryIds: new Set([categoryParam]),
     }));
   }, [categoryParam]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const filtered = useMemo(() => {
-    return placeholderAccounts.filter((a) => {
-      if (a.healthScore < filters.healthMin) return false;
-      if (a.healthScore > filters.healthMax) return false;
-      if (filters.categories.size > 0 && !filters.categories.has(a.category)) {
-        return false;
-      }
-      return true;
-    });
-  }, [filters]);
-
-  const byCategory = useMemo(
+  const filtered = useMemo(
     () =>
-      placeholderAccounts.reduce(
-        (acc, a) => {
-          acc[a.category] = (acc[a.category] ?? 0) + 1;
-          return acc;
-        },
-        {} as Record<string, number>,
-      ),
-    [],
+      accounts.filter((a) => {
+        if (filters.categoryIds.size === 0) return true;
+        return a.category_id && filters.categoryIds.has(a.category_id);
+      }),
+    [accounts, filters.categoryIds],
   );
 
-  const activeFilterCount =
-    (filters.healthMin !== 0 || filters.healthMax !== 100 ? 1 : 0) +
-    (filters.categories.size > 0 ? 1 : 0);
+  const byCategory = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const a of accounts) {
+      if (a.category_id) counts[a.category_id] = (counts[a.category_id] ?? 0) + 1;
+    }
+    return counts;
+  }, [accounts]);
+
+  const activeFilterCount = filters.categoryIds.size > 0 ? 1 : 0;
+
+  if (!activeProjectId) {
+    return (
+      <NoProjectState
+        onCreate={() => openSheet({ kind: "newProject" })}
+      />
+    );
+  }
+
+  if (accountsLoading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-ink-3">
+        <span className="t-small">Loading accounts…</span>
+      </div>
+    );
+  }
+
+  if (accounts.length === 0) {
+    return (
+      <EmptyAccounts onAdd={() => openSheet({ kind: "addAccount" })} />
+    );
+  }
 
   return (
     <>
@@ -138,53 +142,48 @@ function AccountsView() {
         </div>
       </section>
 
-      <section className="mb-4">
-        <FilterStrip>
-          <Chip
-            active={filters.categories.size === 0}
-            count={placeholderAccounts.length}
-            onClick={() => setFilters({ ...filters, categories: new Set() })}
-          >
-            All
-          </Chip>
-          {CATEGORIES.map((c) => (
+      {categories.length > 0 && (
+        <section className="mb-4">
+          <FilterStrip>
             <Chip
-              key={c.id}
-              active={filters.categories.has(c.id)}
-              count={byCategory[c.id] ?? 0}
-              onClick={() => {
-                const next = new Set(filters.categories);
-                if (next.has(c.id)) next.delete(c.id);
-                else next.add(c.id);
-                setFilters({ ...filters, categories: next });
-              }}
+              active={filters.categoryIds.size === 0}
+              count={accounts.length}
+              onClick={() =>
+                setFilters({ ...filters, categoryIds: new Set() })
+              }
             >
-              <span className="inline-flex items-center gap-1.5">
-                <span
-                  aria-hidden
-                  className={`inline-block h-2 w-2 rounded-full ${CATEGORY_DOT[c.id]}`}
-                />
-                {c.label}
-              </span>
+              All
             </Chip>
-          ))}
-        </FilterStrip>
-      </section>
+            {categories.map((c) => (
+              <Chip
+                key={c.id}
+                active={filters.categoryIds.has(c.id)}
+                count={byCategory[c.id] ?? 0}
+                onClick={() => {
+                  const next = new Set(filters.categoryIds);
+                  if (next.has(c.id)) next.delete(c.id);
+                  else next.add(c.id);
+                  setFilters({ ...filters, categoryIds: next });
+                }}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    aria-hidden
+                    className={`inline-block h-2 w-2 rounded-full ${paletteBg(c.palette_id)}`}
+                  />
+                  {c.label}
+                </span>
+              </Chip>
+            ))}
+          </FilterStrip>
+        </section>
+      )}
 
       <section>
         <div className="mb-2 flex items-center justify-between px-1">
           <span data-numeric className="t-small text-ink-2">
-            {filtered.length} of {placeholderAccounts.length}
+            {filtered.length} of {accounts.length}
           </span>
-          <button
-            type="button"
-            className="tap-btn t-micro text-ink-3 hover:text-ink"
-          >
-            Sort · Health ↓
-          </button>
-        </div>
-        <div className="mb-2 px-1">
-          <MetricLegend />
         </div>
         {filtered.length === 0 ? (
           <div className="rounded-md border border-line bg-surface px-3 py-6 text-center">
@@ -199,13 +198,11 @@ function AccountsView() {
           </div>
         ) : (
           <ul className="flex flex-col gap-2">
-            {[...filtered]
-              .sort((a, b) => b.healthScore - a.healthScore)
-              .map((a) => (
-                <li key={a.id}>
-                  <AccountRow account={a} />
-                </li>
-              ))}
+            {filtered.map((a) => (
+              <li key={a.id}>
+                <AccountRow account={a} />
+              </li>
+            ))}
             <li>
               <AddAccountTile />
             </li>
@@ -215,12 +212,72 @@ function AccountsView() {
 
       <AccountsFilterSheet
         open={filterOpen}
+        categories={categories}
         filters={filters}
         onChange={setFilters}
         onApply={() => setFilterOpen(false)}
         onReset={() => setFilters(DEFAULT_FILTERS)}
         onClose={() => setFilterOpen(false)}
       />
+    </>
+  );
+}
+
+function NoProjectState({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center px-2 text-center">
+      <span
+        aria-hidden
+        className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-accent"
+      >
+        <IconPlus />
+      </span>
+      <h1 className="t-display-3 uppercase text-ink">Create a project first</h1>
+      <p className="mt-2 max-w-[28ch] t-body text-ink-2">
+        Accounts belong to a project. Create one to start monitoring TikTok URLs.
+      </p>
+      <button
+        type="button"
+        onClick={onCreate}
+        className="tap-btn mt-5 inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
+      >
+        <IconPlus stroke="#0A0A0A" />
+        New project
+      </button>
+    </div>
+  );
+}
+
+function EmptyAccounts({ onAdd }: { onAdd: () => void }) {
+  return (
+    <>
+      <section className="mb-4">
+        <h1 className="t-display-1 uppercase text-ink">Accounts</h1>
+        <p className="mt-1 t-small text-ink-3">
+          Every monitored account in this project. Tap to view details.
+        </p>
+      </section>
+      <div className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-8 text-center">
+        <span
+          aria-hidden
+          className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent"
+        >
+          <IconPlus />
+        </span>
+        <h2 className="t-h2 text-ink">Add your first account</h2>
+        <p className="mx-auto mt-2 max-w-[32ch] t-small text-ink-2">
+          Paste a TikTok profile URL. The next scrape pulls the last 48 hours
+          of posts.
+        </p>
+        <button
+          type="button"
+          onClick={onAdd}
+          className="tap-btn mt-4 inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
+        >
+          <IconPlus stroke="#0A0A0A" />
+          Add account
+        </button>
+      </div>
     </>
   );
 }

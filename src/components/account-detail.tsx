@@ -1,75 +1,63 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
-  type Account,
-  type AccountSeriesPoint,
-} from "@/lib/placeholder-data";
-import { compactNumber, percent } from "@/lib/format";
-import { healthBand } from "@/components/health-score";
-import { useShell } from "@/components/shell-context";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { getAccount } from "@/lib/data/accounts";
+import { paletteBg } from "@/lib/data/palette";
+import { relativeDate } from "@/lib/format";
+import type { AccountView } from "@/lib/data/types";
 
-const CATEGORY_COLOR: Record<Account["category"], string> = {
-  fashion: "bg-cat-fashion",
-  food: "bg-cat-food",
-  beauty: "bg-cat-beauty",
-  tech: "bg-cat-tech",
-  sports: "bg-cat-sports",
-  music: "bg-cat-music",
-  travel: "bg-cat-travel",
-  lifestyle: "bg-cat-lifestyle",
-};
-
-const CATEGORY_LABEL: Record<Account["category"], string> = {
-  fashion: "Fashion",
-  food: "Food",
-  beauty: "Beauty",
-  tech: "Tech",
-  sports: "Sports",
-  music: "Music",
-  travel: "Travel",
-  lifestyle: "Lifestyle",
-};
-
-const BAND_LABEL = {
-  excellent: "Excellent",
-  strong: "Strong",
-  watching: "Watching",
-  weak: "Weak",
-  critical: "Critical",
-} as const;
-
-type Range = "7d" | "30d" | "90d";
-const RANGE_DAYS: Record<Range, number> = { "7d": 7, "30d": 30, "90d": 90 };
-
-export function AccountDetail({
-  account,
-  series,
-}: {
-  account: Account;
-  series: AccountSeriesPoint[];
-}) {
-  const [range, setRange] = useState<Range>("30d");
-  const { openSheet } = useShell();
-
-  const filtered = useMemo(
-    () => series.slice(-RANGE_DAYS[range]),
-    [series, range],
+export function AccountDetail({ accountId }: { accountId: string }) {
+  const [account, setAccount] = useState<AccountView | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "missing">(
+    "loading",
   );
 
-  const first = filtered[0];
-  const last = filtered[filtered.length - 1];
+  useEffect(() => {
+    let cancelled = false;
+    getAccount(accountId)
+      .then((row) => {
+        if (cancelled) return;
+        if (row) {
+          setAccount(row);
+          setStatus("ready");
+        } else {
+          setStatus("missing");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("missing");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId]);
+
+  if (status === "loading") {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-ink-3">
+        <span className="t-small">Loading account…</span>
+      </div>
+    );
+  }
+
+  if (status === "missing" || !account) {
+    return (
+      <div className="rounded-md border border-line bg-surface px-4 py-8 text-center">
+        <p className="t-body text-ink-2">Account not found.</p>
+        <Link
+          href="/accounts"
+          className="tap-btn mt-3 inline-block t-small text-accent hover:opacity-80"
+        >
+          ← Back to accounts
+        </Link>
+      </div>
+    );
+  }
+
+  const paletteClass = paletteBg(account.category?.palette_id);
+  const initial =
+    account.handle.replace(/^@/, "").charAt(0).toUpperCase() || "?";
 
   return (
     <>
@@ -83,58 +71,49 @@ export function AccountDetail({
               fontSize: 22,
             }}
           >
-            {account.handle.replace(/^@/, "").charAt(0).toUpperCase()}
+            {initial}
           </span>
           <span
             aria-hidden
-            className={`absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full ring-2 ring-bg ${CATEGORY_COLOR[account.category]}`}
+            className={`absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full ring-2 ring-bg ${paletteClass}`}
           />
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="t-display-3 uppercase text-ink">
-            {account.displayName}
+            {account.display_name ?? account.handle.replace(/^@/, "")}
           </h1>
           <div className="mt-0.5 t-body text-ink-3">{account.handle}</div>
         </div>
-        <button
-          type="button"
-          onClick={() =>
-            openSheet({ kind: "editAccount", accountId: account.id })
-          }
-          className="tap-btn inline-flex shrink-0 items-center gap-1 rounded-full border border-line-2 bg-surface px-3 py-1.5 t-small font-semibold text-ink-2 hover:bg-surface-2 hover:text-ink"
-        >
-          Edit
-        </button>
       </section>
 
       <section className="mb-4 flex flex-wrap items-center gap-1.5">
         <Chip>
           <span
             aria-hidden
-            className={`inline-block h-2 w-2 rounded-full ${CATEGORY_COLOR[account.category]}`}
+            className={`inline-block h-2 w-2 rounded-full ${paletteClass}`}
           />
-          {CATEGORY_LABEL[account.category]}
+          {account.category?.label ?? "Uncategorised"}
         </Chip>
-        <Chip>{BAND_LABEL[healthBand(account.healthScore)]}</Chip>
+        {account.tagLabels.map((t) => (
+          <Chip key={t}>#{t}</Chip>
+        ))}
       </section>
 
       <section className="mb-5 grid grid-cols-2 gap-2">
         <StatCell
           label="Followers"
-          value={compactNumber(account.followers)}
+          value={account.followers ? account.followers.toString() : "—"}
         />
         <StatCell
-          label="Health"
-          value={account.healthScore.toString()}
+          label="Last scrape"
+          value={
+            account.last_scraped_at
+              ? relativeDate(account.last_scraped_at)
+              : "Pending"
+          }
         />
-        <StatCell
-          label="Median views"
-          value={compactNumber(account.medianViews)}
-        />
-        <StatCell
-          label="Engagement"
-          value={percent(account.engagementRatio, 1)}
-        />
+        <StatCell label="Median views" value="—" />
+        <StatCell label="Engagement" value="—" />
       </section>
 
       <section className="mb-5">
@@ -149,197 +128,26 @@ export function AccountDetail({
         </a>
       </section>
 
-      <section className="mb-3">
-        <div className="t-micro mb-2 text-ink-3">Tags</div>
-        <ul className="flex flex-wrap gap-1.5">
-          {account.tags.map((t) => (
-            <li key={t}>
-              <span
-                className="inline-flex items-center gap-1 rounded-full border border-line-2 bg-surface-2 px-2.5 py-1 text-ink-2"
-                style={{ fontSize: 11, fontFamily: "var(--font-mono)" }}
-              >
-                <span className="text-ink-3">#</span>
-                {t}
-              </span>
-            </li>
-          ))}
-        </ul>
+      <section className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-6 text-center">
+        <h2 className="t-h2 text-ink">No scrape data yet</h2>
+        <p className="mx-auto mt-2 max-w-[32ch] t-small text-ink-2">
+          Per-post metrics and the trend charts appear after the next daily
+          scrape (08:00 UTC).
+        </p>
       </section>
-
-      <section className="mb-3 mt-6 flex items-center justify-between">
-        <h2 className="t-h1 text-ink">Trends</h2>
-        <RangeSelector value={range} onChange={setRange} />
-      </section>
-
-      <div className="flex flex-col gap-3">
-        <ChartCard
-          label="Health score"
-          deltaLabel={deltaLabel(first?.health, last?.health)}
-          deltaPositive={(last?.health ?? 0) >= (first?.health ?? 0)}
-          chart={
-            <ResponsiveContainer width="100%" height={140}>
-              <AreaChart data={filtered} margin={chartMargin}>
-                <defs>
-                  <linearGradient id="health" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--ink)" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="var(--ink)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
-                <XAxis {...xAxis} />
-                <YAxis {...yAxis} domain={[0, 100]} />
-                <Tooltip content={<ChartTooltip suffix="" />} />
-                <Area
-                  type="monotone"
-                  dataKey="health"
-                  stroke="var(--ink)"
-                  strokeWidth={2}
-                  fill="url(#health)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          }
-        />
-
-        <ChartCard
-          label="Median views"
-          deltaLabel={deltaLabel(first?.medianViews, last?.medianViews, true)}
-          deltaPositive={(last?.medianViews ?? 0) >= (first?.medianViews ?? 0)}
-          chart={
-            <ResponsiveContainer width="100%" height={140}>
-              <LineChart data={filtered} margin={chartMargin}>
-                <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
-                <XAxis {...xAxis} />
-                <YAxis
-                  {...yAxis}
-                  tickFormatter={(v: number) => compactNumber(v)}
-                  width={32}
-                />
-                <Tooltip content={<ChartTooltip formatter={compactNumber} />} />
-                <Line
-                  type="monotone"
-                  dataKey="medianViews"
-                  stroke="var(--info)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          }
-        />
-
-        <ChartCard
-          label="Engagement"
-          deltaLabel={deltaLabel(first?.engagement, last?.engagement, false, true)}
-          deltaPositive={(last?.engagement ?? 0) >= (first?.engagement ?? 0)}
-          chart={
-            <ResponsiveContainer width="100%" height={140}>
-              <LineChart data={filtered} margin={chartMargin}>
-                <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
-                <XAxis {...xAxis} />
-                <YAxis
-                  {...yAxis}
-                  tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
-                  width={36}
-                />
-                <Tooltip
-                  content={
-                    <ChartTooltip formatter={(n: number) => percent(n, 1)} />
-                  }
-                />
-                <Line
-                  type="monotone"
-                  dataKey="engagement"
-                  stroke="var(--good)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          }
-        />
-
-        <ChartCard
-          label="Followers"
-          deltaLabel={deltaLabel(first?.followers, last?.followers, true)}
-          deltaPositive={(last?.followers ?? 0) >= (first?.followers ?? 0)}
-          chart={
-            <ResponsiveContainer width="100%" height={140}>
-              <AreaChart data={filtered} margin={chartMargin}>
-                <defs>
-                  <linearGradient id="followers" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.25} />
-                    <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
-                <XAxis {...xAxis} />
-                <YAxis
-                  {...yAxis}
-                  tickFormatter={(v: number) => compactNumber(v)}
-                  width={32}
-                />
-                <Tooltip content={<ChartTooltip formatter={compactNumber} />} />
-                <Area
-                  type="monotone"
-                  dataKey="followers"
-                  stroke="var(--accent)"
-                  strokeWidth={2}
-                  fill="url(#followers)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          }
-        />
-      </div>
     </>
   );
 }
 
-const chartMargin = { top: 8, right: 0, bottom: 0, left: -12 };
-
-const xAxis = {
-  dataKey: "date" as const,
-  tick: {
-    fontSize: 10,
-    fill: "var(--ink-3)",
-    fontFamily: "var(--font-mono)",
-  },
-  tickFormatter: (d: string) => d.slice(5).replace("-", "/"),
-  tickLine: false,
-  axisLine: { stroke: "var(--line-2)" },
-  minTickGap: 28,
-};
-
-const yAxis = {
-  tick: {
-    fontSize: 10,
-    fill: "var(--ink-3)",
-    fontFamily: "var(--font-mono)",
-  },
-  tickLine: false,
-  axisLine: false as const,
-  width: 28,
-};
-
-function deltaLabel(
-  start: number | undefined,
-  end: number | undefined,
-  numeric = false,
-  isRatio = false,
-): string {
-  if (start === undefined || end === undefined || start === 0) return "—";
-  const diff = end - start;
-  const pct = (diff / start) * 100;
-  if (numeric) {
-    const sign = diff >= 0 ? "+" : "−";
-    return `${sign}${compactNumber(Math.abs(diff))}`;
-  }
-  if (isRatio) {
-    const sign = diff >= 0 ? "+" : "−";
-    return `${sign}${Math.abs(diff * 100).toFixed(2)}pp`;
-  }
-  return `${diff >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`;
+function Chip({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full border border-line-2 bg-surface px-2.5 py-1 text-ink-2"
+      style={{ fontSize: 11 }}
+    >
+      {children}
+    </span>
+  );
 }
 
 function StatCell({ label, value }: { label: string; value: string }) {
@@ -356,111 +164,6 @@ function StatCell({ label, value }: { label: string; value: string }) {
         }}
       >
         {value}
-      </div>
-    </div>
-  );
-}
-
-function Chip({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full border border-line-2 bg-surface px-2.5 py-1 text-ink-2"
-      style={{ fontSize: 11 }}
-    >
-      {children}
-    </span>
-  );
-}
-
-function RangeSelector({
-  value,
-  onChange,
-}: {
-  value: Range;
-  onChange: (r: Range) => void;
-}) {
-  const options: Range[] = ["7d", "30d", "90d"];
-  return (
-    <div className="inline-flex rounded-sm border border-line-2 bg-surface-2 p-1">
-      {options.map((o) => (
-        <button
-          key={o}
-          type="button"
-          onClick={() => onChange(o)}
-          className={`tap-btn rounded-xs px-2.5 py-1 t-small font-medium transition-colors duration-[120ms] ${
-            o === value
-              ? "bg-bg text-ink"
-              : "text-ink-3 hover:text-ink"
-          }`}
-        >
-          {o}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function ChartCard({
-  label,
-  deltaLabel,
-  deltaPositive,
-  chart,
-}: {
-  label: string;
-  deltaLabel: string;
-  deltaPositive: boolean;
-  chart: React.ReactNode;
-}) {
-  return (
-    <div className="overflow-hidden rounded-md border border-line bg-surface">
-      <div className="flex items-baseline justify-between border-b border-line px-3 py-2">
-        <span className="t-micro text-ink-3">{label}</span>
-        <span
-          data-numeric
-          className={`text-[11px] font-semibold ${
-            deltaLabel === "—"
-              ? "text-ink-3"
-              : deltaPositive
-                ? "text-good"
-                : "text-bad"
-          }`}
-          style={{ fontFamily: "var(--font-mono)" }}
-        >
-          {deltaLabel}
-        </span>
-      </div>
-      <div className="px-1 py-2">{chart}</div>
-    </div>
-  );
-}
-
-type TooltipPayload = {
-  active?: boolean;
-  payload?: { value: number }[];
-  label?: string;
-};
-
-function ChartTooltip({
-  active,
-  payload,
-  label,
-  formatter,
-  suffix = "",
-}: TooltipPayload & {
-  formatter?: (n: number) => string;
-  suffix?: string;
-}) {
-  if (!active || !payload || payload.length === 0) return null;
-  const value = payload[0].value;
-  const display = formatter ? formatter(value) : value.toString();
-  return (
-    <div
-      className="rounded-sm border border-line-2 bg-surface px-2.5 py-1.5 shadow-[var(--sh-md)]"
-      style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}
-    >
-      <div className="text-ink">{display}{suffix}</div>
-      <div className="text-ink-3" style={{ fontSize: 9 }}>
-        {label}
       </div>
     </div>
   );

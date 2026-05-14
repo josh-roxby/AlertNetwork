@@ -17,12 +17,14 @@ import { CategoriesSheet } from "@/components/sheets/categories-sheet";
 import { TagsSheet } from "@/components/sheets/tags-sheet";
 import { EditAccountSheet } from "@/components/sheets/edit-account-sheet";
 import { NewProjectSheet } from "@/components/sheets/new-project-sheet";
-import {
-  findAccount,
-  findReport,
-} from "@/lib/placeholder-data";
+import { findReport } from "@/lib/placeholder-data";
+import type { AccountView } from "@/lib/data/types";
 
-function headerFor(pathname: string, activeProjectName: string) {
+function headerFor(
+  pathname: string,
+  activeProjectName: string,
+  accounts: AccountView[],
+) {
   if (pathname === "/" || pathname.startsWith("/dashboard")) {
     return {
       eyebrow: "Project",
@@ -32,7 +34,7 @@ function headerFor(pathname: string, activeProjectName: string) {
   if (pathname.startsWith("/projects")) return { title: "Projects" };
   if (pathname.startsWith("/accounts/")) {
     const id = pathname.split("/")[2];
-    const account = id ? findAccount(id) : null;
+    const account = id ? accounts.find((a) => a.id === id) : null;
     return {
       eyebrow: "Accounts",
       title: account?.handle ?? "Account",
@@ -41,6 +43,7 @@ function headerFor(pathname: string, activeProjectName: string) {
   }
   if (pathname.startsWith("/accounts")) return { title: "Accounts" };
   if (pathname.startsWith("/reports/")) {
+    // Reports still read from placeholder data — wired in M-3b.2.
     const id = pathname.split("/")[2];
     const report = id ? findReport(id) : null;
     return {
@@ -62,14 +65,14 @@ const SHELL_BYPASS = /^\/login(\/|$)/;
 
 function FrameInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { sheet, closeSheet } = useShell();
+  const { sheet, closeSheet, accounts } = useShell();
   const activeProject = useActiveProject();
 
   if (VIEW_ONLY.test(pathname) || SHELL_BYPASS.test(pathname)) {
     return <>{children}</>;
   }
 
-  const head = headerFor(pathname, activeProject?.name ?? "Workspace");
+  const head = headerFor(pathname, activeProject?.name ?? "Workspace", accounts);
 
   return (
     <>

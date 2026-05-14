@@ -363,6 +363,36 @@ export const placeholderReports: Report[] = [
   },
 ];
 
+// Adapter: turns a placeholder Account into the AccountView shape the
+// account-row / detail components expect post M-3b.1. Used by the
+// still-placeholder reports pages until M-3b.2 wires them to real data.
+import type { AccountView } from "@/lib/data/types";
+
+export function adaptPlaceholderToView(a: Account): AccountView {
+  return {
+    id: a.id,
+    project_id: "",
+    handle: a.handle,
+    display_name: a.displayName,
+    platform: a.platform,
+    url: a.url,
+    category_id: a.category,
+    followers: a.followers,
+    last_logged_at: a.lastLoggedAt,
+    last_scraped_at: a.lastLoggedAt,
+    created_at: a.lastLoggedAt,
+    updated_at: a.lastLoggedAt,
+    category: {
+      id: a.category,
+      project_id: "",
+      label: a.category.charAt(0).toUpperCase() + a.category.slice(1),
+      palette_id: a.category,
+      created_at: a.lastLoggedAt,
+    },
+    tagLabels: a.tags,
+  };
+}
+
 export function findReport(id: string) {
   return placeholderReports.find((r) => r.id === id) ?? null;
 }

@@ -2,11 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  CATEGORIES,
-  placeholderAccounts,
-} from "@/lib/placeholder-data";
-import { useActiveProject } from "@/components/shell-context";
+import { useActiveProject, useShell } from "@/components/shell-context";
+import { paletteBg } from "@/lib/data/palette";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
@@ -17,7 +14,6 @@ import {
   IconSettings,
   IconSignOut,
 } from "@/components/icons";
-import type { Category } from "@/lib/placeholder-data";
 import { useAuthUser } from "@/lib/use-auth-user";
 
 const NAV = [
@@ -26,17 +22,6 @@ const NAV = [
   { href: "/reports", label: "Reports", Icon: IconReports },
   { href: "/settings", label: "Settings", Icon: IconSettings },
 ] as const;
-
-const CATEGORY_COLOR: Record<Category, string> = {
-  fashion: "bg-cat-fashion",
-  food: "bg-cat-food",
-  beauty: "bg-cat-beauty",
-  tech: "bg-cat-tech",
-  sports: "bg-cat-sports",
-  music: "bg-cat-music",
-  travel: "bg-cat-travel",
-  lifestyle: "bg-cat-lifestyle",
-};
 
 /**
  * Desktop shell — visible only at `lg:` and up. Renders a top bar with
@@ -58,13 +43,16 @@ export function DesktopShell({
 }) {
   const pathname = usePathname();
   const project = useActiveProject();
+  const { categories, accounts } = useShell();
   const user = useAuthUser();
   const email = user?.email ?? "—";
   const initial = email[0]?.toUpperCase() ?? "?";
 
-  const accountsByCategory = placeholderAccounts.reduce<Record<string, number>>(
+  const accountsByCategory = accounts.reduce<Record<string, number>>(
     (acc, a) => {
-      acc[a.category] = (acc[a.category] ?? 0) + 1;
+      if (a.category_id) {
+        acc[a.category_id] = (acc[a.category_id] ?? 0) + 1;
+      }
       return acc;
     },
     {},
@@ -148,34 +136,40 @@ export function DesktopShell({
               })}
             </ul>
 
-            <div className="t-micro mb-2 mt-6 px-2 text-ink-3">Categories</div>
-            <ul className="flex flex-col gap-0.5">
-              {CATEGORIES.map((c) => (
-                <li key={c.id}>
-                  <Link
-                    href={`/accounts?category=${c.id}`}
-                    className="tap-row flex w-full items-center justify-between gap-2 rounded-sm px-3 py-2 text-left hover:bg-surface-2"
-                  >
-                    <span className="flex items-center gap-2.5 min-w-0">
-                      <span
-                        aria-hidden
-                        className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${CATEGORY_COLOR[c.id]}`}
-                      />
-                      <span className="truncate t-body text-ink-2">
-                        {c.label}
-                      </span>
-                    </span>
-                    <span
-                      data-numeric
-                      className="t-meta text-ink-3"
-                      style={{ fontSize: 10 }}
-                    >
-                      {accountsByCategory[c.id] ?? 0}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            {categories.length > 0 && (
+              <>
+                <div className="t-micro mb-2 mt-6 px-2 text-ink-3">
+                  Categories
+                </div>
+                <ul className="flex flex-col gap-0.5">
+                  {categories.map((c) => (
+                    <li key={c.id}>
+                      <Link
+                        href={`/accounts?category=${c.id}`}
+                        className="tap-row flex w-full items-center justify-between gap-2 rounded-sm px-3 py-2 text-left hover:bg-surface-2"
+                      >
+                        <span className="flex items-center gap-2.5 min-w-0">
+                          <span
+                            aria-hidden
+                            className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${paletteBg(c.palette_id)}`}
+                          />
+                          <span className="truncate t-body text-ink-2">
+                            {c.label}
+                          </span>
+                        </span>
+                        <span
+                          data-numeric
+                          className="t-meta text-ink-3"
+                          style={{ fontSize: 10 }}
+                        >
+                          {accountsByCategory[c.id] ?? 0}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
 
             <Link
               href="/settings#tags-categories-section"

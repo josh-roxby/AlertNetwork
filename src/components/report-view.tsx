@@ -2,6 +2,7 @@
 
 import { AccountRow } from "@/components/account-row";
 import {
+  adaptPlaceholderToView,
   CATEGORIES,
   type Account,
   type Category,
@@ -114,7 +115,7 @@ export function ReportView({
             <ul className="flex flex-col gap-2">
               {top.map((a) => (
                 <li key={a.id}>
-                  <AccountRow account={a} />
+                  <AccountRow account={adaptPlaceholderToView(a)} />
                 </li>
               ))}
             </ul>
@@ -126,7 +127,7 @@ export function ReportView({
             <ul className="flex flex-col gap-2">
               {movers.map((a) => (
                 <li key={a.id}>
-                  <AccountRow account={a} />
+                  <AccountRow account={adaptPlaceholderToView(a)} />
                 </li>
               ))}
             </ul>
@@ -169,7 +170,7 @@ export function ReportView({
                   <ul className="flex flex-col gap-2">
                     {g.items.map((a) => (
                       <li key={a.id}>
-                        <AccountRow account={a} />
+                        <AccountRow account={adaptPlaceholderToView(a)} />
                       </li>
                     ))}
                   </ul>
