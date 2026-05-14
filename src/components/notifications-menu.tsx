@@ -58,7 +58,7 @@ export function NotificationsMenu() {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const items = useMemo(recentSends, []);
+  const items = useMemo(() => recentSends(), []);
   const hasUnread = items.length > 0;
 
   return (

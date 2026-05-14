@@ -19,14 +19,13 @@ const STATUS_STYLE: Record<Status, { wrap: string; dot: string; label: string }>
     draft: {
       wrap: "bg-accent-soft text-accent",
       dot: "bg-accent",
-      label: "One-off",
+      label: "Draft",
     },
   };
 
 const CADENCE_LABEL: Record<Report["cadence"], string> = {
   weekly: "Weekly",
   monthly: "Monthly",
-  "one-off": "One-off",
 };
 
 export function ReportCard({ report }: { report: Report }) {

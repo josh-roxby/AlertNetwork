@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { TabNav } from "@/components/tab-nav";
 import { StatsGrid, type Stat } from "@/components/stats-grid";
 import { AccountRow } from "@/components/account-row";
@@ -21,7 +20,6 @@ type Tab = "recent" | "history" | "settings";
 const CADENCE_LABEL: Record<Report["cadence"], string> = {
   weekly: "Weekly",
   monthly: "Monthly",
-  "one-off": "One-off",
 };
 
 const STATUS_STYLE: Record<
@@ -37,7 +35,7 @@ const STATUS_STYLE: Record<
   draft: {
     wrap: "bg-accent-soft text-accent",
     dot: "bg-accent",
-    label: "One-off",
+    label: "Draft",
   },
 };
 
@@ -377,7 +375,7 @@ function HistoryItem({
 }
 
 function SettingsTab({ report }: { report: Report }) {
-  const cadenceOptions: Report["cadence"][] = ["one-off", "weekly", "monthly"];
+  const cadenceOptions: Report["cadence"][] = ["weekly", "monthly"];
   const scopeOptions: Report["scopeKind"][] = ["project", "tag", "account"];
   const [featured, setFeatured] = useState(report.isFeatured);
   const [scope, setScope] = useState<Report["scopeKind"]>(report.scopeKind);

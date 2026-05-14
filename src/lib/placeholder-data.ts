@@ -63,7 +63,7 @@ export type Report = {
   description: string;
   scope: string;
   scopeKind: "project" | "tag" | "account";
-  cadence: "one-off" | "weekly" | "monthly";
+  cadence: "weekly" | "monthly";
   schedule: string;
   recipients: number;
   recipientEmails: string[];
@@ -358,14 +358,14 @@ export const placeholderReports: Report[] = [
     id: "rep_03",
     name: "Quiet Mornings spike check",
     description:
-      "One-off snapshot for the @quietmornings momentum spike, paused after first send.",
+      "Weekly momentum check on @quietmornings — paused after the initial spike investigation.",
     scope: "Account · @quietmornings",
     scopeKind: "account",
-    cadence: "one-off",
-    schedule: "—",
+    cadence: "weekly",
+    schedule: "Tue · 09:00 GMT",
     recipients: 1,
     recipientEmails: ["josh@exhalestudios.co"],
-    status: "draft",
+    status: "paused",
     isFeatured: false,
     password: null,
     lastSentAt: null,

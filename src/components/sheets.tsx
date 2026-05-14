@@ -180,7 +180,7 @@ export function NewReportSheet({
       />
       <Segmented
         label="Cadence"
-        options={["One-off", "Weekly", "Monthly"]}
+        options={["Weekly", "Monthly"]}
         active="Monthly"
       />
       <Segmented
