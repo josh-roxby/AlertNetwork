@@ -26,7 +26,7 @@ const BAND_TONE: Record<HealthBand, string> = {
   weak: "text-ink-3",
   watching: "text-ink-2",
   strong: "text-ink",
-  excellent: "text-accent",
+  excellent: "text-ink",
 };
 
 export function HealthScore({
