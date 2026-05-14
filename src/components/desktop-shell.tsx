@@ -36,10 +36,17 @@ export function DesktopShell({
   children,
   pageTitle,
   pageEyebrow,
+  hideNav = false,
 }: {
   children: React.ReactNode;
   pageTitle: string;
   pageEyebrow?: string;
+  /**
+   * Hide the workspace nav + categories + project switcher. Used when
+   * the user has no projects yet — the only useful destination is
+   * /projects so we strip the dead navigation surfaces.
+   */
+  hideNav?: boolean;
 }) {
   const pathname = usePathname();
   const project = useActiveProject();
@@ -82,23 +89,25 @@ export function DesktopShell({
           <div className="t-h2 truncate text-ink">{pageTitle}</div>
         </div>
         <div className="flex items-center gap-1.5">
-          <Link
-            href="/projects"
-            className="tap-btn inline-flex items-center gap-2 rounded-sm border border-line-2 bg-surface px-3 py-1.5 t-small font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
-          >
-            <span
-              className="t-micro text-ink-3"
-              style={{ fontSize: 9, letterSpacing: "0.14em" }}
+          {!hideNav && (
+            <Link
+              href="/projects"
+              className="tap-btn inline-flex items-center gap-2 rounded-sm border border-line-2 bg-surface px-3 py-1.5 t-small font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
             >
-              Project
-            </span>
-            <span className="text-ink">{project?.name ?? "Workspace"}</span>
-            <span aria-hidden className="text-ink-3">
-              ▾
-            </span>
-          </Link>
+              <span
+                className="t-micro text-ink-3"
+                style={{ fontSize: 9, letterSpacing: "0.14em" }}
+              >
+                Project
+              </span>
+              <span className="text-ink">{project?.name ?? "Workspace"}</span>
+              <span aria-hidden className="text-ink-3">
+                ▾
+              </span>
+            </Link>
+          )}
           <ThemeToggle />
-          <NotificationsMenu />
+          {!hideNav && <NotificationsMenu />}
           <span
             aria-label={`Signed in as ${email}`}
             title={email}
@@ -111,7 +120,8 @@ export function DesktopShell({
 
       <div className="flex flex-1 overflow-hidden">
         <aside className="flex w-[240px] shrink-0 flex-col border-r border-line bg-surface">
-          <nav className="flex-1 overflow-y-auto px-3 py-4">
+          {!hideNav && (
+            <nav className="flex-1 overflow-y-auto px-3 py-4">
             <div className="t-micro mb-2 px-2 text-ink-3">Workspace</div>
             <ul className="flex flex-col gap-0.5">
               {NAV.map(({ href, label, Icon }) => {
@@ -184,6 +194,8 @@ export function DesktopShell({
               <IconChevronRight />
             </Link>
           </nav>
+          )}
+          {hideNav && <div className="flex-1" />}
 
           <div className="flex shrink-0 items-center gap-2 border-t border-line bg-surface px-3 py-3">
             <span

@@ -1,6 +1,5 @@
 import { supabaseBrowser } from "@/lib/supabase";
 import type { ProjectRow } from "@/lib/data/types";
-import { seedDefaultCategories } from "@/lib/data/categories";
 
 export async function listProjects(): Promise<ProjectRow[]> {
   const supabase = supabaseBrowser();
@@ -36,12 +35,5 @@ export async function createProject(input: {
     .single();
 
   if (error) throw error;
-
-  // Seed the eight default categories so the project is immediately
-  // usable. If seeding fails the project still exists — surface the
-  // error so the UI can prompt the user to retry; categories can also
-  // be created on demand from AddAccountSheet.
-  await seedDefaultCategories(data.id);
-
   return data as ProjectRow;
 }

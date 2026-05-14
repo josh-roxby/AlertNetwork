@@ -2,10 +2,13 @@
 
 import { AnchorScroller } from "@/components/anchor-scroller";
 import { SettingsRow, SettingsSection } from "@/components/settings-row";
-import { useShell } from "@/components/shell-context";
+import { useShell, useActiveProject } from "@/components/shell-context";
+import { useAuthUser } from "@/lib/use-auth-user";
 
 export default function SettingsPage() {
-  const { openSheet } = useShell();
+  const { openSheet, categories, tags, accounts } = useShell();
+  const project = useActiveProject();
+  const user = useAuthUser();
 
   return (
     <>
@@ -13,34 +16,33 @@ export default function SettingsPage() {
       <section className="mb-4">
         <h1 className="t-display-1 uppercase text-ink">Settings</h1>
         <p className="mt-1 t-small text-ink-3">
-          Project, monitoring, team, tags and integrations. Most controls are
-          stubs while auth and DB are wired up.
+          Project, monitoring, team and tags. Reports + integrations land in
+          a later round.
         </p>
       </section>
 
       <SettingsSection label="Project">
-        <SettingsRow kind="value" label="Name" value="Spring Sponsor · Q2" />
+        <SettingsRow kind="value" label="Name" value={project?.name ?? "—"} />
         <SettingsRow
           kind="value"
           label="Description"
-          value="UK indie music"
+          value={project?.description ?? "—"}
         />
-        <SettingsRow kind="value" label="Owner" value="josh@…studios.co" />
+        <SettingsRow kind="value" label="Owner" value={user?.email ?? "—"} />
       </SettingsSection>
 
       <SettingsSection label="Monitoring">
         <SettingsRow
           kind="value"
-          label="Daily log time"
-          subtitle="Every account is logged once a day at this time."
-          value="08:00 GMT"
+          label="Daily scrape time"
+          subtitle="Every account is scraped once a day at this time."
+          value="08:00 UTC"
           chevron={false}
         />
         <SettingsRow
           kind="value"
-          label="Account limit"
-          subtitle="42 of 200 used"
-          value="200"
+          label="Accounts in project"
+          value={accounts.length.toString()}
           chevron={false}
         />
       </SettingsSection>
@@ -50,19 +52,8 @@ export default function SettingsPage() {
           kind="value"
           label="Members"
           value="1"
+          subtitle="Single-owner workspaces in v1."
           onClick={() => openSheet({ kind: "manageTeam" })}
-        />
-        <SettingsRow
-          kind="value"
-          label="Report viewers"
-          value="3"
-          onClick={() => openSheet({ kind: "manageTeam" })}
-        />
-        <SettingsRow
-          kind="value"
-          label="Copy invite link"
-          value="—"
-          chevron
         />
       </SettingsSection>
 
@@ -71,13 +62,13 @@ export default function SettingsPage() {
         <SettingsRow
           kind="value"
           label="Categories"
-          value="8"
+          value={categories.length.toString()}
           onClick={() => openSheet({ kind: "categories" })}
         />
         <SettingsRow
           kind="value"
           label="Project tags"
-          value="14"
+          value={tags.length.toString()}
           onClick={() => openSheet({ kind: "tags" })}
         />
       </SettingsSection>
@@ -90,17 +81,6 @@ export default function SettingsPage() {
           status="good"
           value="On"
         />
-        <SettingsRow
-          kind="pill"
-          label="Gmail service account"
-          subtitle="Report delivery"
-          status="good"
-          value="On"
-        />
-      </SettingsSection>
-
-      <SettingsSection label="Danger zone">
-        <SettingsRow kind="danger" label="Delete project" />
       </SettingsSection>
     </>
   );

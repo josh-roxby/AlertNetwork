@@ -14,8 +14,13 @@ export function AddAccountSheet({
   open: boolean;
   onClose: () => void;
 }) {
-  const { activeProjectId, categories, refreshCategories, refreshAccounts } =
-    useShell();
+  const {
+    activeProjectId,
+    categories,
+    refreshCategories,
+    refreshAccounts,
+    refreshTags,
+  } = useShell();
   const [url, setUrl] = useState("");
   const [category, setCategory] = useState<string>("");
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -68,7 +73,7 @@ export function AddAccountSheet({
     setErrorMessage("");
 
     try {
-      await createAccount({
+      const account = await createAccount({
         projectId: activeProjectId,
         url: url.trim(),
         categoryId:
@@ -80,9 +85,28 @@ export function AddAccountSheet({
       if (category === NEW_CATEGORY_OPTION) {
         await refreshCategories();
       }
+      if (tags.length > 0) {
+        await refreshTags();
+      }
       await refreshAccounts();
       reset();
       onClose();
+
+      // Fire-and-forget 7-day backfill scrape. The sheet has already
+      // closed; when the Apify call resolves, refreshAccounts() runs
+      // again and the row picks up `last_scraped_at` + the new posts.
+      // Failures are swallowed — the next daily cron run will catch
+      // up. We don't await this so the UX stays snappy.
+      void fetch("/api/scrape/tiktok-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountId: account.id,
+          windowHours: 24 * 7,
+        }),
+      })
+        .then(() => refreshAccounts())
+        .catch(() => {});
     } catch (err) {
       setStatus("error");
       setErrorMessage(

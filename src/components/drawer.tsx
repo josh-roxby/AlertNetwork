@@ -25,7 +25,15 @@ const NAV = [
 ] as const;
 
 export function Drawer() {
-  const { drawerOpen, closeDrawer, categories, accounts } = useShell();
+  const {
+    drawerOpen,
+    closeDrawer,
+    categories,
+    accounts,
+    projects,
+    projectsLoading,
+  } = useShell();
+  const hideNav = !projectsLoading && projects.length === 0;
   const pathname = usePathname();
   const project = useActiveProject();
   const user = useAuthUser();
@@ -109,6 +117,7 @@ export function Drawer() {
             <IconChevronRight />
           </Link>
 
+          {!hideNav && (
           <div className="mt-5">
             <div className="t-micro mb-2 px-1 text-ink-3">Workspace</div>
             <ul className="flex flex-col">
@@ -135,6 +144,7 @@ export function Drawer() {
               })}
             </ul>
           </div>
+          )}
 
           {categories.length > 0 && (
             <div className="mt-5">

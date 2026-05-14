@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { getAccount } from "@/lib/data/accounts";
 import { paletteBg } from "@/lib/data/palette";
 import { relativeDate } from "@/lib/format";
+import { SkeletonAccountDetail } from "@/components/skeletons";
 import type { AccountView } from "@/lib/data/types";
 
 export function AccountDetail({ accountId }: { accountId: string }) {
@@ -34,11 +35,7 @@ export function AccountDetail({ accountId }: { accountId: string }) {
   }, [accountId]);
 
   if (status === "loading") {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center text-ink-3">
-        <span className="t-small">Loading account…</span>
-      </div>
-    );
+    return <SkeletonAccountDetail />;
   }
 
   if (status === "missing" || !account) {

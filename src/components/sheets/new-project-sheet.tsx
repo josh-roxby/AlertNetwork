@@ -96,8 +96,7 @@ export function NewProjectSheet({
         />
       </label>
       <p className="t-small text-ink-3">
-        We&apos;ll seed eight default categories so you can start tagging
-        accounts immediately.
+        Categories and tags are created inline as you add accounts.
       </p>
       {status === "error" && errorMessage && (
         <p className="mt-3 t-small text-bad" role="alert">

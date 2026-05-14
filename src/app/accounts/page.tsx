@@ -14,6 +14,7 @@ import {
 } from "@/components/accounts-filter-sheet";
 import { useShell } from "@/components/shell-context";
 import { paletteBg } from "@/lib/data/palette";
+import { SkeletonAccountList } from "@/components/skeletons";
 
 export default function AccountsPage() {
   return (
@@ -81,9 +82,15 @@ function AccountsView() {
 
   if (accountsLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center text-ink-3">
-        <span className="t-small">Loading accounts…</span>
-      </div>
+      <>
+        <section className="mb-4">
+          <h1 className="t-display-1 uppercase text-ink">Accounts</h1>
+          <p className="mt-1 t-small text-ink-3">
+            Every monitored account in this project. Tap to view details.
+          </p>
+        </section>
+        <SkeletonAccountList count={5} />
+      </>
     );
   }
 
