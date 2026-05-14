@@ -11,7 +11,11 @@ import {
   NewReportSheet,
   TeamSheet,
 } from "@/components/sheets";
-import { findReport, placeholderProjects } from "@/lib/placeholder-data";
+import {
+  findAccount,
+  findReport,
+  placeholderProjects,
+} from "@/lib/placeholder-data";
 
 function headerFor(pathname: string) {
   if (pathname === "/" || pathname.startsWith("/dashboard")) {
@@ -19,6 +23,15 @@ function headerFor(pathname: string) {
     return {
       eyebrow: "Project",
       title: project?.name ?? "Workspace",
+    };
+  }
+  if (pathname.startsWith("/accounts/")) {
+    const id = pathname.split("/")[2];
+    const account = id ? findAccount(id) : null;
+    return {
+      eyebrow: "Accounts",
+      title: account?.handle ?? "Account",
+      backHref: "/accounts",
     };
   }
   if (pathname.startsWith("/accounts")) return { title: "Accounts" };

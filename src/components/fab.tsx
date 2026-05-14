@@ -13,6 +13,9 @@ function fabForPath(pathname: string): FabSpec {
   if (pathname === "/" || pathname.startsWith("/dashboard")) {
     return { kind: "drawer", label: "Open project drawer" };
   }
+  if (pathname.startsWith("/accounts/")) {
+    return { kind: "none" };
+  }
   if (pathname.startsWith("/accounts")) {
     return { kind: "sheet", sheet: "addAccount", label: "Add account" };
   }

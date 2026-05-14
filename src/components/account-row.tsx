@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { type Account, type Tier } from "@/lib/placeholder-data";
 import { compactNumber, percent, relativeDate } from "@/lib/format";
 import { healthBand } from "@/components/health-score";
@@ -47,8 +48,8 @@ export function AccountRow({ account }: { account: Account }) {
   const trendUp = account.trendDelta >= 0;
 
   return (
-    <button
-      type="button"
+    <Link
+      href={`/accounts/${account.id}`}
       className="tap-row group flex w-full items-center gap-3 rounded-md border border-line bg-surface px-3 py-3 text-left transition-colors duration-[120ms] hover:bg-surface-2"
     >
       <span className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-3 ring-1 ring-line">
@@ -119,7 +120,7 @@ export function AccountRow({ account }: { account: Account }) {
           </span>
         </span>
       </span>
-    </button>
+    </Link>
   );
 }
 
