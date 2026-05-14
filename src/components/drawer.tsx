@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { useShell } from "@/components/shell-context";
+import { useShell, useActiveProject } from "@/components/shell-context";
 import { useEscape, useScrollLock } from "@/components/overlay";
 import {
   IconAccounts,
@@ -16,7 +16,6 @@ import {
 import {
   CATEGORIES,
   placeholderAccounts,
-  placeholderProjects,
 } from "@/lib/placeholder-data";
 
 const NAV = [
@@ -40,6 +39,7 @@ const CATEGORY_COLOR: Record<(typeof CATEGORIES)[number]["id"], string> = {
 export function Drawer() {
   const { drawerOpen, closeDrawer } = useShell();
   const pathname = usePathname();
+  const project = useActiveProject();
 
   useEscape(drawerOpen, closeDrawer);
   useScrollLock(drawerOpen);
@@ -50,7 +50,6 @@ export function Drawer() {
 
   if (!drawerOpen) return null;
 
-  const project = placeholderProjects[0];
   const accountsByCategory = placeholderAccounts.reduce(
     (acc, a) => {
       acc[a.category] = (acc[a.category] ?? 0) + 1;
@@ -100,8 +99,9 @@ export function Drawer() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-4 pt-4">
-          <button
-            type="button"
+          <Link
+            href="/projects"
+            onClick={closeDrawer}
             className="tap-row flex w-full items-center gap-3 rounded-md border border-line-2 bg-surface p-3 text-left hover:bg-surface-2"
           >
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm bg-surface-3 text-ink-2">
@@ -110,11 +110,11 @@ export function Drawer() {
             <span className="min-w-0 flex-1">
               <span className="t-micro block text-ink-3">Project</span>
               <span className="t-h2 block truncate text-ink">
-                {project?.name}
+                {project?.name ?? "Switch project"}
               </span>
             </span>
             <IconChevronRight />
-          </button>
+          </Link>
 
           <div className="mt-5">
             <div className="t-micro mb-2 px-1 text-ink-3">Workspace</div>
@@ -148,8 +148,9 @@ export function Drawer() {
             <ul className="grid grid-cols-2 gap-1">
               {CATEGORIES.map((c) => (
                 <li key={c.id}>
-                  <button
-                    type="button"
+                  <Link
+                    href={`/accounts?category=${c.id}`}
+                    onClick={closeDrawer}
                     className="tap-row flex w-full items-center justify-between gap-2 rounded-sm px-3 py-2.5 text-left hover:bg-surface-2"
                   >
                     <span className="flex items-center gap-2 min-w-0">
@@ -168,7 +169,7 @@ export function Drawer() {
                     >
                       {accountsByCategory[c.id] ?? 0}
                     </span>
-                  </button>
+                  </Link>
                 </li>
               ))}
             </ul>

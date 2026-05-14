@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Chip } from "@/components/chip";
 import { FilterStrip } from "@/components/filter-strip";
 import { AccountRow } from "@/components/account-row";
@@ -29,9 +30,37 @@ const CATEGORY_DOT: Record<Category, string> = {
   lifestyle: "bg-cat-lifestyle",
 };
 
+function isCategory(v: string | null): v is Category {
+  return !!v && CATEGORIES.some((c) => c.id === v);
+}
+
 export default function AccountsPage() {
-  const [filters, setFilters] = useState<AccountFilters>(DEFAULT_FILTERS);
+  return (
+    <Suspense fallback={null}>
+      <AccountsView />
+    </Suspense>
+  );
+}
+
+function AccountsView() {
+  const searchParams = useSearchParams();
+  const categoryParam = searchParams.get("category");
+  const initialFilters: AccountFilters = isCategory(categoryParam)
+    ? { ...DEFAULT_FILTERS, categories: new Set([categoryParam]) }
+    : DEFAULT_FILTERS;
+  const [filters, setFilters] = useState<AccountFilters>(initialFilters);
   const [filterOpen, setFilterOpen] = useState(false);
+
+  // If the URL category param changes after mount (drawer link), apply it.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!isCategory(categoryParam)) return;
+    setFilters((prev) => ({
+      ...prev,
+      categories: new Set([categoryParam]),
+    }));
+  }, [categoryParam]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const filtered = useMemo(() => {
     return placeholderAccounts.filter((a) => {
