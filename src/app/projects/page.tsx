@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useShell, useActiveProject } from "@/components/shell-context";
 import { relativeDate } from "@/lib/format";
 import { IconChevronRight, IconPlus } from "@/components/icons";
+import { SkeletonProjectList } from "@/components/skeletons";
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -18,9 +19,12 @@ export default function ProjectsPage() {
 
   if (projectsLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center text-ink-3">
-        <span className="t-small">Loading projects…</span>
-      </div>
+      <>
+        <section className="mb-4">
+          <h1 className="t-display-1 uppercase text-ink">Projects</h1>
+        </section>
+        <SkeletonProjectList count={3} />
+      </>
     );
   }
 

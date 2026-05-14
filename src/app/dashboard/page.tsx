@@ -5,6 +5,10 @@ import { StatsGrid, type Stat } from "@/components/stats-grid";
 import { AccountRow } from "@/components/account-row";
 import { AddAccountTile } from "@/components/add-account-tile";
 import { IconPlus } from "@/components/icons";
+import {
+  SkeletonAccountList,
+  SkeletonStatsGrid,
+} from "@/components/skeletons";
 import { useShell, useActiveProject } from "@/components/shell-context";
 import { relativeDate } from "@/lib/format";
 
@@ -31,9 +35,20 @@ export default function DashboardPage() {
 
   if (accountsLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center text-ink-3">
-        <span className="t-small">Loading dashboard…</span>
-      </div>
+      <>
+        <section className="mb-4">
+          <h1 className="t-display-1 uppercase text-ink">Dashboard</h1>
+          <p className="mt-1 t-small text-ink-3">
+            {project?.name ?? "Workspace"}
+          </p>
+        </section>
+        <section className="mb-7">
+          <SkeletonStatsGrid />
+        </section>
+        <section>
+          <SkeletonAccountList count={4} />
+        </section>
+      </>
     );
   }
 

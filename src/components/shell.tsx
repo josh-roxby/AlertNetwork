@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Header } from "@/components/header";
 import { FloatNav } from "@/components/float-nav";
 import { Fab, DesktopFab } from "@/components/fab";
@@ -62,22 +63,47 @@ function headerFor(
 // and for the unauthenticated /login route.
 const VIEW_ONLY = /^\/reports\/[^/]+\/view(\/|$)/;
 const SHELL_BYPASS = /^\/login(\/|$)/;
+const PROJECTS_ROUTE = /^\/projects(\/|$)/;
 
 function FrameInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { sheet, closeSheet, accounts } = useShell();
+  const router = useRouter();
+  const { sheet, closeSheet, accounts, projects, projectsLoading } = useShell();
   const activeProject = useActiveProject();
 
-  if (VIEW_ONLY.test(pathname) || SHELL_BYPASS.test(pathname)) {
+  const onBareRoute =
+    VIEW_ONLY.test(pathname) || SHELL_BYPASS.test(pathname);
+  // First-run / signed-out state: no projects yet means the only place
+  // the user should be is /projects. Every other surface is hidden so
+  // the dead nav doesn't confuse them.
+  const noProjects = !projectsLoading && projects.length === 0;
+  const onProjectsRoute = PROJECTS_ROUTE.test(pathname);
+
+  useEffect(() => {
+    if (onBareRoute) return;
+    if (!noProjects) return;
+    if (onProjectsRoute) return;
+    router.replace("/projects");
+  }, [noProjects, onProjectsRoute, onBareRoute, router]);
+
+  if (onBareRoute) {
     return <>{children}</>;
   }
 
-  const head = headerFor(pathname, activeProject?.name ?? "Workspace", accounts);
+  const head = headerFor(
+    pathname,
+    activeProject?.name ?? "Workspace",
+    accounts,
+  );
 
   return (
     <>
       {/* Desktop layout — sidebar + top bar at lg+; otherwise hidden. */}
-      <DesktopShell pageTitle={head.title} pageEyebrow={head.eyebrow}>
+      <DesktopShell
+        pageTitle={head.title}
+        pageEyebrow={head.eyebrow}
+        hideNav={noProjects}
+      >
         {children}
       </DesktopShell>
 
@@ -97,20 +123,22 @@ function FrameInner({ children }: { children: React.ReactNode }) {
 
         <main
           className="absolute inset-x-0 overflow-y-auto"
-          style={{ top: 52, bottom: 0, paddingBottom: 92 }}
+          style={{ top: 52, bottom: 0, paddingBottom: noProjects ? 20 : 92 }}
         >
           <div className="mx-auto w-full max-w-3xl px-4 pb-3 pt-4 md:px-6">
             {children}
           </div>
         </main>
 
-        <FloatNav />
-        <Fab />
+        {/* Lower nav + FAB are gated on having at least one project so a
+            fresh user can't get lost in dead links. */}
+        {!noProjects && <FloatNav />}
+        {!noProjects && <Fab />}
         <Drawer />
       </div>
 
       {/* Desktop FAB — only visible at lg+, fixed to viewport corner. */}
-      <DesktopFab />
+      {!noProjects && <DesktopFab />}
 
       <AddAccountSheet
         open={sheet?.kind === "addAccount"}

@@ -12,7 +12,13 @@ import { supabaseBrowser } from "@/lib/supabase";
 import { listProjects } from "@/lib/data/projects";
 import { listCategories } from "@/lib/data/categories";
 import { listAccounts } from "@/lib/data/accounts";
-import type { AccountView, CategoryRow, ProjectRow } from "@/lib/data/types";
+import { listTags } from "@/lib/data/tags";
+import type {
+  AccountView,
+  CategoryRow,
+  ProjectRow,
+  TagRow,
+} from "@/lib/data/types";
 
 export type SheetState =
   | null
@@ -34,6 +40,8 @@ type ShellContextValue = {
   projectsLoading: boolean;
   categories: CategoryRow[];
   categoriesLoading: boolean;
+  tags: TagRow[];
+  tagsLoading: boolean;
   accounts: AccountView[];
   accountsLoading: boolean;
   openDrawer: () => void;
@@ -43,6 +51,7 @@ type ShellContextValue = {
   setActiveProjectId: (id: string) => void;
   refreshProjects: () => Promise<void>;
   refreshCategories: () => Promise<void>;
+  refreshTags: () => Promise<void>;
   refreshAccounts: () => Promise<void>;
 };
 
@@ -55,6 +64,8 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [tags, setTags] = useState<TagRow[]>([]);
+  const [tagsLoading, setTagsLoading] = useState(true);
   const [accounts, setAccounts] = useState<AccountView[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(
@@ -125,56 +136,93 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
     }
   }, [loadProjects, activeProjectId, setActiveProjectId]);
 
-  const loadCategories = useCallback(async (projectId: string | null) => {
-    if (!projectId) {
-      setCategories([]);
-      setCategoriesLoading(false);
-      return;
-    }
-    setCategoriesLoading(true);
-    try {
-      const rows = await listCategories(projectId);
-      setCategories(rows);
-    } catch {
-      setCategories([]);
-    } finally {
-      setCategoriesLoading(false);
-    }
-  }, []);
+  // Per-project loaders share the same shape: when `silent` is true
+  // they keep the previous state visible while re-fetching, so a
+  // post-write refresh doesn't flash the skeleton. `silent` is `false`
+  // for project switches (data is genuinely stale) and the initial
+  // mount, and `true` for explicit refresh calls.
+
+  const loadCategories = useCallback(
+    async (projectId: string | null, opts: { silent?: boolean } = {}) => {
+      if (!projectId) {
+        setCategories([]);
+        setCategoriesLoading(false);
+        return;
+      }
+      if (!opts.silent) setCategoriesLoading(true);
+      try {
+        const rows = await listCategories(projectId);
+        setCategories(rows);
+      } catch {
+        setCategories([]);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    },
+    [],
+  );
 
   const refreshCategories = useCallback(async () => {
-    await loadCategories(activeProjectId);
+    await loadCategories(activeProjectId, { silent: true });
   }, [loadCategories, activeProjectId]);
 
-  const loadAccounts = useCallback(async (projectId: string | null) => {
-    if (!projectId) {
-      setAccounts([]);
-      setAccountsLoading(false);
-      return;
-    }
-    setAccountsLoading(true);
-    try {
-      const rows = await listAccounts(projectId);
-      setAccounts(rows);
-    } catch {
-      setAccounts([]);
-    } finally {
-      setAccountsLoading(false);
-    }
-  }, []);
+  const loadTags = useCallback(
+    async (projectId: string | null, opts: { silent?: boolean } = {}) => {
+      if (!projectId) {
+        setTags([]);
+        setTagsLoading(false);
+        return;
+      }
+      if (!opts.silent) setTagsLoading(true);
+      try {
+        const rows = await listTags(projectId);
+        setTags(rows);
+      } catch {
+        setTags([]);
+      } finally {
+        setTagsLoading(false);
+      }
+    },
+    [],
+  );
+
+  const refreshTags = useCallback(async () => {
+    await loadTags(activeProjectId, { silent: true });
+  }, [loadTags, activeProjectId]);
+
+  const loadAccounts = useCallback(
+    async (projectId: string | null, opts: { silent?: boolean } = {}) => {
+      if (!projectId) {
+        setAccounts([]);
+        setAccountsLoading(false);
+        return;
+      }
+      if (!opts.silent) setAccountsLoading(true);
+      try {
+        const rows = await listAccounts(projectId);
+        setAccounts(rows);
+      } catch {
+        setAccounts([]);
+      } finally {
+        setAccountsLoading(false);
+      }
+    },
+    [],
+  );
 
   const refreshAccounts = useCallback(async () => {
-    await loadAccounts(activeProjectId);
+    await loadAccounts(activeProjectId, { silent: true });
   }, [loadAccounts, activeProjectId]);
 
-  // Reload categories + accounts whenever the active project changes.
-  // Both helpers set state internally; the cascading setState is
-  // intentional (data fetched in response to an external change).
+  // Reload per-project data whenever the active project changes. Not
+  // silent — the project switch genuinely invalidates the existing
+  // lists, so users should see a skeleton during the fetch.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     loadCategories(activeProjectId);
+    loadTags(activeProjectId);
     loadAccounts(activeProjectId);
-  }, [activeProjectId, loadCategories, loadAccounts]);
+  }, [activeProjectId, loadCategories, loadTags, loadAccounts]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
@@ -191,6 +239,8 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       projectsLoading,
       categories,
       categoriesLoading,
+      tags,
+      tagsLoading,
       accounts,
       accountsLoading,
       openDrawer,
@@ -200,6 +250,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       setActiveProjectId,
       refreshProjects,
       refreshCategories,
+      refreshTags,
       refreshAccounts,
     }),
     [
@@ -210,6 +261,8 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       projectsLoading,
       categories,
       categoriesLoading,
+      tags,
+      tagsLoading,
       accounts,
       accountsLoading,
       openDrawer,
@@ -219,6 +272,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       setActiveProjectId,
       refreshProjects,
       refreshCategories,
+      refreshTags,
       refreshAccounts,
     ],
   );
