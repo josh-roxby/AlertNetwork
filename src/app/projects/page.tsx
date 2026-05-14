@@ -121,6 +121,11 @@ export default function ProjectsPage() {
                     className="mt-2 flex items-center gap-2 text-ink-3"
                     style={{ fontSize: 11, fontFamily: "var(--font-mono)" }}
                   >
+                    <span>
+                      {p.account_count ?? 0}{" "}
+                      {(p.account_count ?? 0) === 1 ? "account" : "accounts"}
+                    </span>
+                    <span className="text-ink-4">·</span>
                     <span>Updated {relativeDate(p.updated_at)}</span>
                   </span>
                 </span>

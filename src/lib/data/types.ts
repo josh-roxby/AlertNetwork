@@ -8,6 +8,9 @@ export type ProjectRow = {
   description: string | null;
   created_at: string;
   updated_at: string;
+  // Hydrated client-side by `listProjects()` — total accounts in the
+  // project. Not a DB column.
+  account_count?: number;
 };
 
 export type CategoryRow = {
@@ -63,4 +66,31 @@ export type ReportRow = {
   last_sent_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type PostRow = {
+  id: string;
+  account_id: string;
+  platform_post_id: string;
+  posted_at: string;
+  url: string | null;
+  caption: string | null;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  first_seen_at: string;
+  last_scraped_at: string;
+  updated_at: string;
+};
+
+export type AccountPostStats = {
+  postCount: number;
+  totalViews: number;
+  totalLikes: number;
+  totalComments: number;
+  medianViews: number;
+  topPost: PostRow | null;
+  latestPost: PostRow | null;
 };

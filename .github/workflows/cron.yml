@@ -50,3 +50,21 @@ jobs:
             --header "Authorization: Bearer ${CRON_SHARED_SECRET}" \
             --header "Content-Type: application/json" \
             "${APP_URL}/api/cron/daily"
+
+      - name: Trigger report dispatch
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SHARED_SECRET: ${{ secrets.CRON_SHARED_SECRET }}
+        run: |
+          set -euo pipefail
+          echo "POST ${APP_URL}/api/cron/reports"
+          # The route checks the UTC date and only sends weekly reports
+          # on Mondays and monthly reports on the 1st. Off-days it
+          # returns a no-op summary, which is fine.
+          curl --fail-with-body \
+            --silent --show-error \
+            --max-time 60 \
+            --request POST \
+            --header "Authorization: Bearer ${CRON_SHARED_SECRET}" \
+            --header "Content-Type: application/json" \
+            "${APP_URL}/api/cron/reports"

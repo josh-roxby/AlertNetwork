@@ -30,8 +30,18 @@ export function AddAccountSheet({
   const [newCategoryName, setNewCategoryName] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagDraft, setTagDraft] = useState("");
-  const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [status, setStatus] = useState<
+    | "idle"
+    | "saving"
+    | "scraping"
+    | "done"
+    | "error"
+  >("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [scrapeSummary, setScrapeSummary] = useState<{
+    scanned: number;
+    written: number;
+  } | null>(null);
 
   const showCategoryCreate = category === NEW_CATEGORY_OPTION;
 
@@ -58,6 +68,7 @@ export function AddAccountSheet({
     setTagDraft("");
     setStatus("idle");
     setErrorMessage("");
+    setScrapeSummary(null);
   }
 
   async function submit() {
@@ -76,8 +87,9 @@ export function AddAccountSheet({
     setStatus("saving");
     setErrorMessage("");
 
+    let createdAccount;
     try {
-      const account = await createAccount({
+      createdAccount = await createAccount({
         projectId: activeProjectId,
         url: url.trim(),
         categoryId:
@@ -93,40 +105,37 @@ export function AddAccountSheet({
         await refreshTags();
       }
       await refreshAccounts();
-      reset();
-      onClose();
-
-      // Fire-and-forget 7-day backfill scrape. The sheet has already
-      // closed; when the Apify call resolves, refreshAccounts() runs
-      // again and the row picks up `last_scraped_at` + the new posts.
-      // Results (success + failure both) are logged to the console so
-      // dev tools surface them — the next daily cron run also catches
-      // anything missed.
-      void triggerAccountScrape(account.id, 24 * 7).then((result) => {
-        if (result.ok) {
-          console.info(
-            `[scrape] ${account.handle}: scanned ${result.scanned}, wrote ${result.written}`,
-          );
-        } else {
-          console.error(
-            `[scrape] ${account.handle} failed (${result.status}): ${result.error}`,
-          );
-        }
-        void refreshAccounts();
-      });
     } catch (err) {
       setStatus("error");
       setErrorMessage(
         err instanceof Error ? err.message : "Couldn't add the account.",
       );
+      return;
+    }
+
+    // Now run the 7-day backfill scrape WHILE the sheet stays open so
+    // the user sees progress + outcome. The account is already saved,
+    // so even if Apify fails we don't roll back — we just show the
+    // failure inline and let them close.
+    setStatus("scraping");
+    const result = await triggerAccountScrape(createdAccount.id, 24 * 7);
+    await refreshAccounts();
+    if (result.ok) {
+      setScrapeSummary({ scanned: result.scanned, written: result.written });
+      setStatus("done");
+    } else {
+      setStatus("error");
+      setErrorMessage(
+        `Scrape failed: ${result.error} — the account is saved; you can retry from its detail page.`,
+      );
     }
   }
 
-  const disabled = status === "saving";
+  const busy = status === "saving" || status === "scraping";
   const canSubmit =
     !!activeProjectId &&
     !!url.trim() &&
-    !disabled &&
+    status === "idle" &&
     (category !== NEW_CATEGORY_OPTION || !!newCategoryName.trim());
 
   return (
@@ -139,27 +148,46 @@ export function AddAccountSheet({
       title="Add account"
       description="Paste a TikTok URL — handle is detected automatically."
       footer={
-        <>
-          <button
-            type="button"
-            onClick={() => {
-              reset();
-              onClose();
-            }}
-            disabled={disabled}
-            className="tap-btn rounded-sm border border-line-2 bg-surface px-4 py-2.5 t-body font-medium text-ink-2 hover:bg-surface-2 hover:text-ink disabled:opacity-60"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!canSubmit}
-            className="tap-btn rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {disabled ? "Adding…" : "Add to project"}
-          </button>
-        </>
+        status === "done" || status === "error" ? (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                reset();
+                onClose();
+              }}
+              className="tap-btn rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
+            >
+              Close
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                reset();
+                onClose();
+              }}
+              disabled={busy}
+              className="tap-btn rounded-sm border border-line-2 bg-surface px-4 py-2.5 t-body font-medium text-ink-2 hover:bg-surface-2 hover:text-ink disabled:opacity-60"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={submit}
+              disabled={!canSubmit}
+              className="tap-btn rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {status === "saving"
+                ? "Adding…"
+                : status === "scraping"
+                  ? "Scraping…"
+                  : "Add to project"}
+            </button>
+          </>
+        )
       }
     >
       <label className="mb-4 block">
@@ -169,7 +197,7 @@ export function AddAccountSheet({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://www.tiktok.com/@northlight"
-          disabled={disabled}
+          disabled={busy}
           className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-60"
         />
       </label>
@@ -179,7 +207,7 @@ export function AddAccountSheet({
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          disabled={disabled}
+          disabled={busy}
           className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink focus:border-accent focus:outline-none disabled:opacity-60"
         >
           <option value="">Pick a category…</option>
@@ -197,7 +225,7 @@ export function AddAccountSheet({
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
               placeholder="New category name"
-              disabled={disabled}
+              disabled={busy}
               className="h-10 w-full rounded-xs border border-line-2 bg-bg px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-60"
               autoFocus
             />
@@ -252,7 +280,7 @@ export function AddAccountSheet({
           }}
           onBlur={commitTag}
           placeholder="Type a tag, press Enter"
-          disabled={disabled}
+          disabled={busy}
           className="h-10 w-full rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-60"
         />
         <p className="mt-1 t-small text-ink-3">
@@ -261,8 +289,26 @@ export function AddAccountSheet({
         </p>
       </div>
 
+      {status === "scraping" && (
+        <p className="mt-2 rounded-sm border border-accent-line bg-accent-soft px-3 py-2 t-small text-accent">
+          Scraping the last 7 days from TikTok. This can take up to a
+          minute — keep the sheet open.
+        </p>
+      )}
+
+      {status === "done" && scrapeSummary && (
+        <p className="mt-2 rounded-sm border border-good bg-good-soft px-3 py-2 t-small text-good">
+          Account added. Scanned {scrapeSummary.scanned} post
+          {scrapeSummary.scanned === 1 ? "" : "s"}, wrote {scrapeSummary.written}
+          {scrapeSummary.written === 1 ? "" : ""} to the project.
+        </p>
+      )}
+
       {status === "error" && errorMessage && (
-        <p className="mt-2 rounded-sm border border-bad bg-bad-soft px-3 py-2 t-small text-bad" role="alert">
+        <p
+          className="mt-2 rounded-sm border border-bad bg-bad-soft px-3 py-2 t-small text-bad"
+          role="alert"
+        >
           {errorMessage}
         </p>
       )}

@@ -1,10 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getReport } from "@/lib/data/reports";
+import {
+  deleteReport,
+  getReport,
+  updateReport,
+} from "@/lib/data/reports";
 import { relativeDate } from "@/lib/format";
+import { useShell } from "@/components/shell-context";
 import { IconEye } from "@/components/icons";
+import { Star } from "@/components/star";
 import type { ReportRow } from "@/lib/data/types";
 
 const CADENCE_LABEL: Record<ReportRow["cadence"], string> = {
@@ -33,11 +40,21 @@ const STATUS_STYLE: Record<
   },
 };
 
+const SCOPE_LABEL: Record<ReportRow["scope_kind"], string> = {
+  project: "Whole project",
+  category: "Categories",
+  account: "Accounts",
+};
+
 export function ReportDetail({ reportId }: { reportId: string }) {
+  const router = useRouter();
+  const { refreshReports } = useShell();
   const [report, setReport] = useState<ReportRow | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "missing">(
     "loading",
   );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +75,41 @@ export function ReportDetail({ reportId }: { reportId: string }) {
       cancelled = true;
     };
   }, [reportId]);
+
+  async function mutate(patch: Parameters<typeof updateReport>[1]) {
+    if (!report) return;
+    setBusy(true);
+    setError("");
+    try {
+      await updateReport(report.id, patch);
+      const fresh = await getReport(report.id);
+      if (fresh) setReport(fresh);
+      await refreshReports();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't update.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function destroy() {
+    if (!report) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(`Delete "${report.name}"? This can't be undone.`)
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      await deleteReport(report.id);
+      await refreshReports();
+      router.push("/reports");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't delete.");
+      setBusy(false);
+    }
+  }
 
   if (status === "loading") {
     return (
@@ -82,6 +134,7 @@ export function ReportDetail({ reportId }: { reportId: string }) {
   }
 
   const s = STATUS_STYLE[report.status] ?? STATUS_STYLE.draft;
+  const isPaused = report.status === "paused";
 
   return (
     <>
@@ -94,6 +147,25 @@ export function ReportDetail({ reportId }: { reportId: string }) {
             <p className="mt-1 t-small text-ink-2">{report.description}</p>
           )}
         </div>
+        <button
+          type="button"
+          onClick={() => mutate({ is_featured: !report.is_featured })}
+          disabled={busy}
+          aria-pressed={report.is_featured}
+          aria-label={
+            report.is_featured ? "Unmark as featured" : "Mark as featured"
+          }
+          title={
+            report.is_featured ? "Unmark as featured" : "Mark as featured"
+          }
+          className={`tap-btn inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ${
+            report.is_featured
+              ? "border-accent-line bg-accent-soft text-accent"
+              : "border-line-2 bg-surface text-ink-3 hover:text-ink"
+          } disabled:cursor-not-allowed disabled:opacity-60`}
+        >
+          <Star filled={report.is_featured} />
+        </button>
         <span
           className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 ${s.wrap}`}
           style={{ fontSize: 10, fontWeight: 600 }}
@@ -108,7 +180,7 @@ export function ReportDetail({ reportId }: { reportId: string }) {
 
       <section className="mb-5 grid grid-cols-2 gap-2">
         <StatCell label="Cadence" value={CADENCE_LABEL[report.cadence]} />
-        <StatCell label="Scope" value="Whole project" />
+        <StatCell label="Scope" value={SCOPE_LABEL[report.scope_kind]} />
         <StatCell label="Schedule" value={report.schedule ?? "—"} />
         <StatCell
           label="Last sent"
@@ -128,13 +200,55 @@ export function ReportDetail({ reportId }: { reportId: string }) {
         </Link>
       </section>
 
-      <section className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-6 text-center">
-        <h2 className="t-h2 text-ink">No sends yet</h2>
-        <p className="mx-auto mt-2 max-w-[36ch] t-small text-ink-2">
-          Recipients, account scope-overrides, send history and live charts
-          arrive in a later round. For now reports are project-wide and the
-          schedule is fixed.
-        </p>
+      <section className="mb-5">
+        <h2 className="t-h1 mb-2 text-ink">Actions</h2>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              mutate({ status: isPaused ? "active" : "paused" })
+            }
+            disabled={busy}
+            className="tap-row flex items-center justify-between rounded-md border border-line bg-surface px-3 py-3 text-left hover:bg-surface-2 disabled:opacity-60"
+          >
+            <span className="min-w-0">
+              <span className="block t-body font-medium text-ink">
+                {isPaused ? "Resume report" : "Pause report"}
+              </span>
+              <span className="block t-small text-ink-3">
+                {isPaused
+                  ? "Cron will pick it up on the next send day."
+                  : "Skip the next scheduled send until resumed."}
+              </span>
+            </span>
+            <span aria-hidden className="text-ink-3">
+              {isPaused ? "▶" : "❚❚"}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={destroy}
+            disabled={busy}
+            className="tap-row flex items-center justify-between rounded-md border border-line bg-surface px-3 py-3 text-left text-bad hover:bg-bad-soft disabled:opacity-60"
+          >
+            <span className="min-w-0">
+              <span className="block t-body font-medium">Delete report</span>
+              <span className="block t-small text-ink-3">
+                Removes the report and its send history.
+              </span>
+            </span>
+            <span aria-hidden>×</span>
+          </button>
+        </div>
+        {error && (
+          <p
+            className="mt-3 rounded-sm border border-bad bg-bad-soft px-3 py-2 t-small text-bad"
+            role="alert"
+          >
+            {error}
+          </p>
+        )}
       </section>
     </>
   );

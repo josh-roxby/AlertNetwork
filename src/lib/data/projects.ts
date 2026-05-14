@@ -9,7 +9,21 @@ export async function listProjects(): Promise<ProjectRow[]> {
     .order("created_at", { ascending: true });
 
   if (error) throw error;
-  return (data ?? []) as ProjectRow[];
+  const projects = (data ?? []) as ProjectRow[];
+
+  // Hydrate account counts in parallel. Each query is a HEAD with an
+  // exact count — no rows transferred. RLS gates to the caller's
+  // accounts so private projects from other users never leak in.
+  const withCounts = await Promise.all(
+    projects.map(async (p) => {
+      const { count } = await supabase
+        .from("accounts")
+        .select("*", { count: "exact", head: true })
+        .eq("project_id", p.id);
+      return { ...p, account_count: count ?? 0 };
+    }),
+  );
+  return withCounts;
 }
 
 export async function createProject(input: {
