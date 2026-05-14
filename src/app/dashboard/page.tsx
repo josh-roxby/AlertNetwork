@@ -1,101 +1,67 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
 import { StatsGrid, type Stat } from "@/components/stats-grid";
-import { Chip } from "@/components/chip";
-import { FilterStrip } from "@/components/filter-strip";
 import { AccountRow } from "@/components/account-row";
 import { AddAccountTile } from "@/components/add-account-tile";
-import { MetricLegend } from "@/components/metric-legend";
-import { FeaturedReports } from "@/components/featured-reports";
-import {
-  CATEGORIES,
-  placeholderAccounts,
-  placeholderReports,
-  type Account,
-} from "@/lib/placeholder-data";
-import { compactNumber } from "@/lib/format";
-import { healthBand } from "@/components/health-score";
-import { IconChevronRight } from "@/components/icons";
-
-const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
-  CATEGORIES.map((c) => [c.id, c.label]),
-);
-
-const CATEGORY_COLOR: Record<string, string> = {
-  fashion: "bg-cat-fashion",
-  food: "bg-cat-food",
-  beauty: "bg-cat-beauty",
-  tech: "bg-cat-tech",
-  sports: "bg-cat-sports",
-  music: "bg-cat-music",
-  travel: "bg-cat-travel",
-  lifestyle: "bg-cat-lifestyle",
-};
-
-type DashboardFilter = "all" | "excellent" | "strong" | "watching" | "movers";
-
-function matchFilter(account: Account, f: DashboardFilter): boolean {
-  if (f === "all") return true;
-  if (f === "movers") return Math.abs(account.trendDelta) >= 20;
-  return healthBand(account.healthScore) === f;
-}
+import { IconPlus } from "@/components/icons";
+import { useShell, useActiveProject } from "@/components/shell-context";
+import { relativeDate } from "@/lib/format";
 
 export default function DashboardPage() {
-  const [filter, setFilter] = useState<DashboardFilter>("all");
+  const {
+    activeProjectId,
+    categories,
+    accounts,
+    accountsLoading,
+    openSheet,
+  } = useShell();
+  const project = useActiveProject();
 
-  const accounts = placeholderAccounts;
-  const reports = placeholderReports;
+  if (!activeProjectId) {
+    return (
+      <EmptyState
+        title="Create your first project"
+        body="A project is a workspace for monitoring TikTok accounts. Once you create one, you can start adding accounts."
+        cta="New project"
+        onCta={() => openSheet({ kind: "newProject" })}
+      />
+    );
+  }
 
-  const avgHealth = Math.round(
-    accounts.reduce((sum, a) => sum + a.healthScore, 0) / accounts.length,
-  );
-  const moversCount = accounts.filter((a) => Math.abs(a.trendDelta) >= 20).length;
-  const excellentCount = accounts.filter(
-    (a) => healthBand(a.healthScore) === "excellent",
-  ).length;
-  const strongCount = accounts.filter(
-    (a) => healthBand(a.healthScore) === "strong",
-  ).length;
-  const watchingCount = accounts.filter(
-    (a) => healthBand(a.healthScore) === "watching",
-  ).length;
-  const totalFollowers = accounts.reduce((sum, a) => sum + a.followers, 0);
-  const liveReports = reports.filter((r) => r.status === "live").length;
+  if (accountsLoading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-ink-3">
+        <span className="t-small">Loading dashboard…</span>
+      </div>
+    );
+  }
 
-  const topAccount = useMemo(
-    () => [...accounts].sort((a, b) => b.healthScore - a.healthScore)[0],
-    [accounts],
-  );
+  if (accounts.length === 0) {
+    return (
+      <EmptyState
+        title="Add your first account"
+        body={`No accounts in ${project?.name ?? "this project"} yet. Paste a TikTok profile URL to start monitoring it.`}
+        cta="Add account"
+        onCta={() => openSheet({ kind: "addAccount" })}
+      />
+    );
+  }
 
-  const filtered = useMemo(
-    () =>
-      [...accounts]
-        .filter((a) => matchFilter(a, filter))
-        .sort((a, b) => b.healthScore - a.healthScore),
-    [accounts, filter],
-  );
+  const mostRecentScrape = accounts.reduce<string | null>((latest, a) => {
+    if (!a.last_scraped_at) return latest;
+    if (!latest || a.last_scraped_at > latest) return a.last_scraped_at;
+    return latest;
+  }, null);
 
   const stats: Stat[] = [
     { label: "Accounts", value: accounts.length.toString() },
+    { label: "Categories", value: categories.length.toString() },
     {
-      label: "Avg health",
-      value: avgHealth.toString(),
-      trend: { kind: "good", label: "↑4.2" },
+      label: "Last scrape",
+      value: mostRecentScrape ? relativeDate(mostRecentScrape) : "Pending",
     },
-    { label: "Categories", value: CATEGORIES.length.toString() },
-    { label: "Live reports", value: liveReports.toString() },
-    {
-      label: "Movers",
-      value: moversCount.toString(),
-      trend: { kind: "neutral", label: "≥20%" },
-    },
-    {
-      label: "Reach",
-      value: compactNumber(totalFollowers),
-      trend: { kind: "good", label: "↑18%" },
-    },
+    { label: "Live reports", value: "—" },
   ];
 
   return (
@@ -103,13 +69,14 @@ export default function DashboardPage() {
       <section className="mb-4">
         <h1 className="t-display-1 uppercase text-ink">Dashboard</h1>
         <p className="mt-1 t-small text-ink-3">
-          Live snapshot of every monitored account in this project.
+          {project?.name ?? "Workspace"} — every account in this project.
         </p>
       </section>
 
-      {topAccount && (
-        <section className="mb-2">
-          <TopHealthTile account={topAccount} />
+      {!mostRecentScrape && (
+        <section className="mb-4 rounded-md border border-accent-line bg-accent-soft px-3 py-2.5 t-small text-accent">
+          First scrape pending. Metrics will appear after the next daily run
+          (08:00 UTC).
         </section>
       )}
 
@@ -117,54 +84,10 @@ export default function DashboardPage() {
         <StatsGrid stats={stats} />
       </section>
 
-      <section className="mb-7">
-        <FeaturedReports max={3} />
-      </section>
-
-      <section className="mb-4">
-        <FilterStrip>
-          <Chip
-            active={filter === "all"}
-            count={accounts.length}
-            onClick={() => setFilter("all")}
-          >
-            All
-          </Chip>
-          <Chip
-            active={filter === "excellent"}
-            count={excellentCount}
-            onClick={() => setFilter("excellent")}
-          >
-            Excellent
-          </Chip>
-          <Chip
-            active={filter === "strong"}
-            count={strongCount}
-            onClick={() => setFilter("strong")}
-          >
-            Strong
-          </Chip>
-          <Chip
-            active={filter === "watching"}
-            count={watchingCount}
-            onClick={() => setFilter("watching")}
-          >
-            Watching
-          </Chip>
-          <Chip
-            active={filter === "movers"}
-            count={moversCount}
-            onClick={() => setFilter("movers")}
-          >
-            Movers
-          </Chip>
-        </FilterStrip>
-      </section>
-
       <section>
         <div className="mb-2 flex items-center justify-between px-1">
           <span data-numeric className="t-small text-ink-2">
-            {filtered.length} of {accounts.length}
+            {accounts.length} account{accounts.length === 1 ? "" : "s"}
           </span>
           <Link
             href="/accounts"
@@ -173,96 +96,50 @@ export default function DashboardPage() {
             See all →
           </Link>
         </div>
-        <div className="mb-2 px-1">
-          <MetricLegend />
-        </div>
-        {filtered.length === 0 ? (
-          <div className="rounded-md border border-line bg-surface px-3 py-6 text-center">
-            <p className="t-body text-ink-2">No accounts match this filter.</p>
-            <button
-              type="button"
-              onClick={() => setFilter("all")}
-              className="tap-btn mt-2 t-micro text-accent hover:opacity-80"
-            >
-              Reset filter
-            </button>
-          </div>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {filtered.map((a) => (
-              <li key={a.id}>
-                <AccountRow account={a} />
-              </li>
-            ))}
-            <li>
-              <AddAccountTile />
+        <ul className="flex flex-col gap-2">
+          {accounts.slice(0, 8).map((a) => (
+            <li key={a.id}>
+              <AccountRow account={a} />
             </li>
-          </ul>
-        )}
+          ))}
+          <li>
+            <AddAccountTile />
+          </li>
+        </ul>
       </section>
     </>
   );
 }
 
-function TopHealthTile({ account }: { account: Account }) {
-  const trendUp = account.trendDelta >= 0;
+function EmptyState({
+  title,
+  body,
+  cta,
+  onCta,
+}: {
+  title: string;
+  body: string;
+  cta: string;
+  onCta: () => void;
+}) {
   return (
-    <Link
-      href={`/accounts/${account.id}`}
-      className="tap-row block rounded-md border border-accent-line bg-accent-soft p-4 transition-colors duration-[120ms] hover:bg-accent-soft hover:opacity-95"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="t-micro text-ink-3">Top health</div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span
-              data-numeric
-              className="leading-none text-ink"
-              style={{
-                fontFamily: "var(--font-unbounded)",
-                fontWeight: 800,
-                fontSize: 44,
-                letterSpacing: "-0.015em",
-              }}
-            >
-              {account.healthScore}
-            </span>
-            <span
-              data-numeric
-              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                trendUp ? "bg-good-soft text-good" : "bg-bad-soft text-bad"
-              }`}
-            >
-              {trendUp ? "↑" : "↓"}
-              {Math.abs(account.trendDelta).toFixed(1)}
-            </span>
-          </div>
-          <div className="mt-1 flex items-center gap-1.5 t-small text-ink">
-            <span className="truncate font-semibold">{account.handle}</span>
-            <span className="text-ink-3">·</span>
-            <span className="inline-flex items-center gap-1.5 text-ink-2">
-              <span
-                aria-hidden
-                className={`inline-block h-1.5 w-1.5 rounded-full ${CATEGORY_COLOR[account.category]}`}
-              />
-              {CATEGORY_LABEL[account.category]}
-            </span>
-          </div>
-        </div>
-        <span
-          aria-hidden
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-sm bg-accent text-[#0A0A0A]"
-        >
-          <IconChevronRight />
-        </span>
-      </div>
+    <div className="flex min-h-[60vh] flex-col items-center justify-center px-2 text-center">
       <span
         aria-hidden
-        className="mt-3 inline-flex items-center gap-1 t-meta text-accent"
-        style={{ fontSize: 10, letterSpacing: "0.14em" }}
+        className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-accent"
       >
-        View account →
+        <IconPlus />
       </span>
-    </Link>
+      <h1 className="t-display-3 uppercase text-ink">{title}</h1>
+      <p className="mt-2 max-w-[32ch] t-body text-ink-2">{body}</p>
+      <button
+        type="button"
+        onClick={onCta}
+        className="tap-btn mt-5 inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
+      >
+        <IconPlus stroke="#0A0A0A" />
+        {cta}
+      </button>
+    </div>
   );
 }

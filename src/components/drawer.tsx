@@ -14,10 +14,7 @@ import {
   IconSettings,
   IconSignOut,
 } from "@/components/icons";
-import {
-  CATEGORIES,
-  placeholderAccounts,
-} from "@/lib/placeholder-data";
+import { paletteBg } from "@/lib/data/palette";
 import { useAuthUser } from "@/lib/use-auth-user";
 
 const NAV = [
@@ -27,19 +24,8 @@ const NAV = [
   { href: "/settings", label: "Settings", Icon: IconSettings },
 ] as const;
 
-const CATEGORY_COLOR: Record<(typeof CATEGORIES)[number]["id"], string> = {
-  fashion: "bg-cat-fashion",
-  food: "bg-cat-food",
-  beauty: "bg-cat-beauty",
-  tech: "bg-cat-tech",
-  sports: "bg-cat-sports",
-  music: "bg-cat-music",
-  travel: "bg-cat-travel",
-  lifestyle: "bg-cat-lifestyle",
-};
-
 export function Drawer() {
-  const { drawerOpen, closeDrawer } = useShell();
+  const { drawerOpen, closeDrawer, categories, accounts } = useShell();
   const pathname = usePathname();
   const project = useActiveProject();
   const user = useAuthUser();
@@ -55,9 +41,11 @@ export function Drawer() {
 
   if (!drawerOpen) return null;
 
-  const accountsByCategory = placeholderAccounts.reduce(
+  const accountsByCategory = accounts.reduce(
     (acc, a) => {
-      acc[a.category] = (acc[a.category] ?? 0) + 1;
+      if (a.category_id) {
+        acc[a.category_id] = (acc[a.category_id] ?? 0) + 1;
+      }
       return acc;
     },
     {} as Record<string, number>,
@@ -148,50 +136,52 @@ export function Drawer() {
             </ul>
           </div>
 
-          <div className="mt-5">
-            <div className="t-micro mb-2 px-1 text-ink-3">Categories</div>
-            <ul className="grid grid-cols-2 gap-1">
-              {CATEGORIES.map((c) => (
-                <li key={c.id}>
-                  <Link
-                    href={`/accounts?category=${c.id}`}
-                    onClick={closeDrawer}
-                    className="tap-row flex w-full items-center justify-between gap-2 rounded-sm px-3 py-2.5 text-left hover:bg-surface-2"
-                  >
-                    <span className="flex items-center gap-2 min-w-0">
-                      <span
-                        aria-hidden
-                        className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${CATEGORY_COLOR[c.id]}`}
-                      />
-                      <span className="truncate t-body text-ink-2">
-                        {c.label}
-                      </span>
-                    </span>
-                    <span
-                      data-numeric
-                      className="t-meta text-ink-3"
-                      style={{ fontSize: 10 }}
+          {categories.length > 0 && (
+            <div className="mt-5">
+              <div className="t-micro mb-2 px-1 text-ink-3">Categories</div>
+              <ul className="grid grid-cols-2 gap-1">
+                {categories.map((c) => (
+                  <li key={c.id}>
+                    <Link
+                      href={`/accounts?category=${c.id}`}
+                      onClick={closeDrawer}
+                      className="tap-row flex w-full items-center justify-between gap-2 rounded-sm px-3 py-2.5 text-left hover:bg-surface-2"
                     >
-                      {accountsByCategory[c.id] ?? 0}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            <Link
-              href="/settings#tags-categories-section"
-              onClick={closeDrawer}
-              className="mt-3 flex w-full items-center justify-between rounded-sm border border-dashed border-line-2 px-3 py-2.5 text-ink-3 transition-colors duration-[120ms] hover:border-line-3 hover:text-ink"
-            >
-              <span
-                className="t-meta"
-                style={{ fontSize: 10, letterSpacing: "0.14em" }}
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span
+                          aria-hidden
+                          className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${paletteBg(c.palette_id)}`}
+                        />
+                        <span className="truncate t-body text-ink-2">
+                          {c.label}
+                        </span>
+                      </span>
+                      <span
+                        data-numeric
+                        className="t-meta text-ink-3"
+                        style={{ fontSize: 10 }}
+                      >
+                        {accountsByCategory[c.id] ?? 0}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/settings#tags-categories-section"
+                onClick={closeDrawer}
+                className="mt-3 flex w-full items-center justify-between rounded-sm border border-dashed border-line-2 px-3 py-2.5 text-ink-3 transition-colors duration-[120ms] hover:border-line-3 hover:text-ink"
               >
-                Manage tags & categories
-              </span>
-              <span aria-hidden>→</span>
-            </Link>
-          </div>
+                <span
+                  className="t-meta"
+                  style={{ fontSize: 10, letterSpacing: "0.14em" }}
+                >
+                  Manage tags & categories
+                </span>
+                <span aria-hidden>→</span>
+              </Link>
+            </div>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-3 border-t border-line bg-surface px-4 py-3">
