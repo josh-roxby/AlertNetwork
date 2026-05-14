@@ -55,15 +55,17 @@ function headerFor(pathname: string, activeProjectName: string) {
 }
 
 // Routes that render bare — no shell frame, no header, no nav, no FAB.
-// Used for shareable views that need to look standalone (and print clean).
+// Used for shareable views that need to look standalone (and print clean),
+// and for the unauthenticated /login route.
 const VIEW_ONLY = /^\/reports\/[^/]+\/view(\/|$)/;
+const SHELL_BYPASS = /^\/login(\/|$)/;
 
 function FrameInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { sheet, closeSheet } = useShell();
   const activeProject = useActiveProject();
 
-  if (VIEW_ONLY.test(pathname)) {
+  if (VIEW_ONLY.test(pathname) || SHELL_BYPASS.test(pathname)) {
     return <>{children}</>;
   }
 

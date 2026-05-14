@@ -12,11 +12,13 @@ import {
   IconDashboard,
   IconReports,
   IconSettings,
+  IconSignOut,
 } from "@/components/icons";
 import {
   CATEGORIES,
   placeholderAccounts,
 } from "@/lib/placeholder-data";
+import { useAuthUser } from "@/lib/use-auth-user";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", Icon: IconDashboard },
@@ -40,6 +42,9 @@ export function Drawer() {
   const { drawerOpen, closeDrawer } = useShell();
   const pathname = usePathname();
   const project = useActiveProject();
+  const user = useAuthUser();
+  const email = user?.email ?? "—";
+  const initial = email[0]?.toUpperCase() ?? "?";
 
   useEscape(drawerOpen, closeDrawer);
   useScrollLock(drawerOpen);
@@ -189,23 +194,29 @@ export function Drawer() {
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-line bg-surface px-4 py-3">
-          <div className="flex items-center gap-3">
-            <span
-              aria-hidden
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-3 text-[12px] font-semibold text-ink ring-1 ring-line-2"
+        <div className="flex shrink-0 items-center gap-3 border-t border-line bg-surface px-4 py-3">
+          <span
+            aria-hidden
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[12px] font-semibold text-ink ring-1 ring-line-2"
+          >
+            {initial}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block t-small truncate text-ink" title={email}>
+              {email}
+            </span>
+            <span className="block t-micro text-ink-3">Signed in</span>
+          </span>
+          <form action="/auth/sign-out" method="POST">
+            <button
+              type="submit"
+              aria-label="Sign out"
+              title="Sign out"
+              className="tap-btn inline-flex h-9 w-9 items-center justify-center rounded-sm text-ink-3 hover:bg-surface-2 hover:text-ink"
             >
-              JR
-            </span>
-            <span className="min-w-0">
-              <span className="block t-body font-medium text-ink">
-                Josh Roxby
-              </span>
-              <span className="block t-small truncate text-ink-3">
-                josh@exhalestudios.co
-              </span>
-            </span>
-          </div>
+              <IconSignOut />
+            </button>
+          </form>
         </div>
       </aside>
     </div>
