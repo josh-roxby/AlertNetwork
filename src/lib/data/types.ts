@@ -68,6 +68,15 @@ export type ReportRow = {
   updated_at: string;
 };
 
+export type ReportHistoryRow = {
+  id: string;
+  report_id: string;
+  sent_at: string;
+  status: string;
+  recipients: number;
+  accounts: number;
+};
+
 export type PostRow = {
   id: string;
   account_id: string;
