@@ -27,7 +27,7 @@ import {
 import { compactNumber, percent, relativeDate } from "@/lib/format";
 import { SkeletonAccountDetail } from "@/components/skeletons";
 import { TabNav } from "@/components/tab-nav";
-import { useShell } from "@/components/shell-context";
+import { useShell, useActiveProject } from "@/components/shell-context";
 import { IconChevronRight } from "@/components/icons";
 import type { AccountView, PostRow } from "@/lib/data/types";
 
@@ -37,6 +37,7 @@ type DetailTab = "charts" | "posts";
 
 export function AccountDetail({ accountId }: { accountId: string }) {
   const { refreshAccounts, refreshPosts, openSheet } = useShell();
+  const project = useActiveProject();
   const [account, setAccount] = useState<AccountView | null>(null);
   const [posts, setPosts] = useState<PostRow[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "missing">(
@@ -123,7 +124,7 @@ export function AccountDetail({ accountId }: { accountId: string }) {
     );
   }
 
-  const health = computeAccountHealth(posts);
+  const health = computeAccountHealth(posts, project?.health_config);
   const hasPosts = posts.length > 0;
   const trendUp = health.trendDelta >= 0;
   const paletteClass = paletteBg(account.category?.palette_id);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useShell } from "@/components/shell-context";
+import { useShell, useActiveProject } from "@/components/shell-context";
 import { getReportScopeIds } from "@/lib/data/reports";
 import { averageHealth, BAND_BG, BAND_LABEL } from "@/lib/data/health";
 import { relativeDate } from "@/lib/format";
@@ -34,6 +34,7 @@ const CADENCE_LABEL: Record<ReportRow["cadence"], string> = {
 
 export function ReportCard({ report }: { report: ReportRow }) {
   const { accounts, postsByAccount, categories } = useShell();
+  const project = useActiveProject();
   const [scopedAccountIds, setScopedAccountIds] = useState<string[] | null>(
     null,
   );
@@ -83,7 +84,7 @@ export function ReportCard({ report }: { report: ReportRow }) {
 
   const scopeSummary = describeScope(report, scopedAccountIds, categories.length);
   const avg = scopedAccountIds
-    ? averageHealth(postsByAccount, scopedAccountIds)
+    ? averageHealth(postsByAccount, scopedAccountIds, project?.health_config)
     : null;
 
   const s = STATUS_STYLE[report.status] ?? STATUS_STYLE.draft;

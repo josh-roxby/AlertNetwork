@@ -16,11 +16,13 @@ import {
 import { compactNumber, relativeDate } from "@/lib/format";
 import { paletteBg } from "@/lib/data/palette";
 import { TabNav } from "@/components/tab-nav";
-import { useShell } from "@/components/shell-context";
+import { useShell, useActiveProject } from "@/components/shell-context";
 import { IconChevronRight, IconEye } from "@/components/icons";
 import { Star } from "@/components/star";
 import type {
   AccountView,
+  CategoryRow,
+  HealthConfig,
   PostRow,
   ReportHistoryRow,
   ReportRow,
@@ -66,9 +68,12 @@ export function ReportDetail({ reportId }: { reportId: string }) {
     reportsLoading,
     accounts,
     postsByAccount,
+    categories,
     openSheet,
     refreshReports,
   } = useShell();
+  const activeProject = useActiveProject();
+  const healthConfig: HealthConfig | null = activeProject?.health_config ?? null;
 
   const report = useMemo(
     () => reports.find((r) => r.id === reportId) ?? null,
@@ -196,7 +201,7 @@ export function ReportDetail({ reportId }: { reportId: string }) {
     : [];
   const avg =
     scopedIds && scopedIds.length > 0
-      ? averageHealth(postsByAccount, scopedIds)
+      ? averageHealth(postsByAccount, scopedIds, healthConfig)
       : null;
 
   return (
@@ -315,6 +320,8 @@ export function ReportDetail({ reportId }: { reportId: string }) {
         <RecentTab
           scopedAccounts={scopedAccounts}
           postsByAccount={postsByAccount}
+          categories={categories}
+          healthConfig={healthConfig}
           avgHealth={avg?.avgHealth ?? 0}
           avgBand={avg?.band ?? "critical"}
           covered={avg?.covered ?? 0}
@@ -323,6 +330,7 @@ export function ReportDetail({ reportId }: { reportId: string }) {
 
       {tab === "history" && (
         <HistoryTab
+          reportId={report.id}
           loading={historyLoading}
           rows={history}
           onOpenManage={() =>
@@ -347,12 +355,16 @@ export function ReportDetail({ reportId }: { reportId: string }) {
 function RecentTab({
   scopedAccounts,
   postsByAccount,
+  categories,
+  healthConfig,
   avgHealth,
   avgBand,
   covered,
 }: {
   scopedAccounts: AccountView[];
   postsByAccount: Map<string, PostRow[]>;
+  categories: CategoryRow[];
+  healthConfig: HealthConfig | null;
   avgHealth: number;
   avgBand: keyof typeof BAND_BG;
   covered: number;
@@ -369,14 +381,18 @@ function RecentTab({
     );
   }
 
-  // Top 5 accounts by health score.
-  const ranked = [...scopedAccounts]
-    .map((a) => ({
-      account: a,
-      health: computeAccountHealth(postsByAccount.get(a.id) ?? []),
-    }))
+  const withHealth = scopedAccounts.map((a) => ({
+    account: a,
+    health: computeAccountHealth(
+      postsByAccount.get(a.id) ?? [],
+      healthConfig,
+    ),
+  }));
+
+  // Top 3 only — these are the "highlighted" accounts.
+  const top3 = [...withHealth]
     .sort((a, b) => b.health.healthScore - a.health.healthScore)
-    .slice(0, 5);
+    .slice(0, 3);
 
   // Top 5 posts across scoped accounts by views.
   const allPosts: PostRow[] = [];
@@ -385,8 +401,12 @@ function RecentTab({
     for (const p of ps) allPosts.push(p);
   }
   const topPosts = [...allPosts].sort((a, b) => b.views - a.views).slice(0, 5);
-  const accountByHandle = new Map<string, AccountView>();
-  for (const a of scopedAccounts) accountByHandle.set(a.id, a);
+  const accountById = new Map<string, AccountView>();
+  for (const a of scopedAccounts) accountById.set(a.id, a);
+
+  // Group every scoped account by its category. Uncategorised rows
+  // fall into a synthetic bucket so they're still visible.
+  const byCategory = groupByCategory(withHealth, categories);
 
   return (
     <>
@@ -421,46 +441,18 @@ function RecentTab({
       </section>
 
       <section className="mb-5">
-        <h3 className="t-micro mb-2 px-1 text-ink-3">Top accounts</h3>
+        <h3 className="t-micro mb-2 px-1 text-ink-3">Top 3 accounts</h3>
         <ul className="flex flex-col gap-2">
-          {ranked.map(({ account, health }) => (
+          {top3.map(({ account, health }) => (
             <li key={account.id}>
-              <Link
-                href={`/accounts/${account.id}`}
-                className="tap-row flex items-center gap-3 rounded-md border border-line bg-surface px-3 py-3 hover:bg-surface-2"
-              >
-                <span
-                  aria-hidden
-                  className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${paletteBg(account.category?.palette_id)}`}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate t-body font-semibold text-ink">
-                    {account.handle}
-                  </span>
-                  <span
-                    className="block t-meta text-ink-3"
-                    style={{ fontSize: 10 }}
-                  >
-                    {health.postCount > 0
-                      ? `${compactNumber(health.totalViews)} views · ${health.postCount} posts (30d)`
-                      : "No posts yet"}
-                  </span>
-                </span>
-                <span
-                  data-numeric
-                  className="t-h2 text-ink"
-                  style={{ minWidth: 36, textAlign: "right" }}
-                >
-                  {health.postCount > 0 ? health.healthScore : "—"}
-                </span>
-              </Link>
+              <AccountTile account={account} health={health} highlighted />
             </li>
           ))}
         </ul>
       </section>
 
-      <section>
-        <h3 className="t-micro mb-2 px-1 text-ink-3">Top posts</h3>
+      <section className="mb-5">
+        <h3 className="t-micro mb-2 px-1 text-ink-3">Top 5 posts</h3>
         {topPosts.length === 0 ? (
           <div className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-8 text-center">
             <p className="t-body text-ink-2">No posts cached yet.</p>
@@ -471,7 +463,7 @@ function RecentTab({
         ) : (
           <ul className="flex flex-col gap-2">
             {topPosts.map((post) => {
-              const a = accountByHandle.get(post.account_id);
+              const a = accountById.get(post.account_id);
               const inner = (
                 <div className="tap-row flex items-start gap-3 rounded-md border border-line bg-surface px-3 py-3 hover:bg-surface-2">
                   <span className="min-w-0 flex-1">
@@ -491,9 +483,7 @@ function RecentTab({
                       className="mt-1 flex flex-wrap gap-x-3 t-meta text-ink-3"
                       style={{ fontSize: 10 }}
                     >
-                      {a && (
-                        <span className="text-ink-2">{a.handle}</span>
-                      )}
+                      {a && <span className="text-ink-2">{a.handle}</span>}
                       <span>{compactNumber(post.views)} views</span>
                       <span>{compactNumber(post.likes)} likes</span>
                       <span>{relativeDate(post.posted_at)}</span>
@@ -523,15 +513,137 @@ function RecentTab({
           </ul>
         )}
       </section>
+
+      <section>
+        <h3 className="t-micro mb-2 px-1 text-ink-3">All by category</h3>
+        {byCategory.length === 0 ? (
+          <div className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-6 text-center t-small text-ink-3">
+            No accounts to group.
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-4">
+            {byCategory.map((group) => (
+              <li key={group.id}>
+                <div className="mb-2 flex items-center gap-2 px-1">
+                  <span
+                    aria-hidden
+                    className={`inline-block h-2 w-2 rounded-full ${paletteBg(group.paletteId)}`}
+                  />
+                  <span className="t-small font-medium text-ink">
+                    {group.label}
+                  </span>
+                  <span
+                    className="t-meta text-ink-3"
+                    style={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
+                  >
+                    {group.accounts.length} account
+                    {group.accounts.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <ul className="flex flex-col gap-1.5">
+                  {group.accounts.map(({ account, health }) => (
+                    <li key={account.id}>
+                      <AccountTile account={account} health={health} />
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </>
   );
 }
 
+type CategoryGroup = {
+  id: string;
+  label: string;
+  paletteId: string | null;
+  accounts: { account: AccountView; health: ReturnType<typeof computeAccountHealth> }[];
+};
+
+function groupByCategory(
+  rows: { account: AccountView; health: ReturnType<typeof computeAccountHealth> }[],
+  categories: CategoryRow[],
+): CategoryGroup[] {
+  const byId = new Map<string, CategoryGroup>();
+  for (const c of categories) {
+    byId.set(c.id, { id: c.id, label: c.label, paletteId: c.palette_id, accounts: [] });
+  }
+  const uncategorised: CategoryGroup = {
+    id: "__none",
+    label: "Uncategorised",
+    paletteId: null,
+    accounts: [],
+  };
+  for (const row of rows) {
+    const catId = row.account.category_id;
+    if (catId && byId.has(catId)) {
+      byId.get(catId)!.accounts.push(row);
+    } else {
+      uncategorised.accounts.push(row);
+    }
+  }
+  return [
+    ...Array.from(byId.values()).filter((g) => g.accounts.length > 0),
+    ...(uncategorised.accounts.length > 0 ? [uncategorised] : []),
+  ];
+}
+
+function AccountTile({
+  account,
+  health,
+  highlighted = false,
+}: {
+  account: AccountView;
+  health: ReturnType<typeof computeAccountHealth>;
+  highlighted?: boolean;
+}) {
+  return (
+    <Link
+      href={`/accounts/${account.id}`}
+      className={`tap-row flex items-center gap-3 rounded-md border px-3 py-3 hover:bg-surface-2 ${
+        highlighted
+          ? "border-accent-line bg-accent-soft"
+          : "border-line bg-surface"
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${paletteBg(account.category?.palette_id)}`}
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate t-body font-semibold text-ink">
+          {account.handle}
+        </span>
+        <span
+          className="block t-meta text-ink-3"
+          style={{ fontSize: 10 }}
+        >
+          {health.postCount > 0
+            ? `${compactNumber(health.totalViews)} views · ${health.postCount} posts (30d)`
+            : "No posts yet"}
+        </span>
+      </span>
+      <span
+        data-numeric
+        className="t-h2 text-ink"
+        style={{ minWidth: 36, textAlign: "right" }}
+      >
+        {health.postCount > 0 ? health.healthScore : "—"}
+      </span>
+    </Link>
+  );
+}
+
 function HistoryTab({
+  reportId,
   loading,
   rows,
   onOpenManage,
 }: {
+  reportId: string;
   loading: boolean;
   rows: ReportHistoryRow[];
   onOpenManage: () => void;
@@ -567,33 +679,36 @@ function HistoryTab({
       {rows.map((h) => {
         const delivered = h.status === "delivered";
         return (
-          <li
-            key={h.id}
-            className="flex items-center gap-3 rounded-md border border-line bg-surface px-3 py-3"
-          >
-            <span
-              aria-hidden
-              className={`inline-block h-2 w-2 shrink-0 rounded-full ${delivered ? "bg-good" : "bg-bad"}`}
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block t-body text-ink">
-                {delivered ? "Delivered" : h.status}
+          <li key={h.id}>
+            <Link
+              href={`/reports/${reportId}/view?historyId=${h.id}`}
+              className="tap-row flex items-center gap-3 rounded-md border border-line bg-surface px-3 py-3 hover:bg-surface-2"
+            >
+              <span
+                aria-hidden
+                className={`inline-block h-2 w-2 shrink-0 rounded-full ${delivered ? "bg-good" : "bg-bad"}`}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block t-body text-ink">
+                  {delivered ? "Delivered" : h.status}
+                </span>
+                <span
+                  data-numeric
+                  className="block t-meta text-ink-3"
+                  style={{ fontSize: 10 }}
+                >
+                  {h.accounts} accounts · {h.recipients} recipients
+                </span>
               </span>
               <span
                 data-numeric
-                className="block t-meta text-ink-3"
-                style={{ fontSize: 10 }}
+                className="shrink-0 text-right t-small text-ink-3"
+                style={{ fontFamily: "var(--font-mono)" }}
               >
-                {h.accounts} accounts · {h.recipients} recipients
+                {relativeDate(h.sent_at)}
               </span>
-            </span>
-            <span
-              data-numeric
-              className="shrink-0 text-right t-small text-ink-3"
-              style={{ fontFamily: "var(--font-mono)" }}
-            >
-              {relativeDate(h.sent_at)}
-            </span>
+              <IconChevronRight className="shrink-0 text-ink-3" />
+            </Link>
           </li>
         );
       })}

@@ -18,6 +18,7 @@ import { CategoriesSheet } from "@/components/sheets/categories-sheet";
 import { TagsSheet } from "@/components/sheets/tags-sheet";
 import { EditAccountSheet } from "@/components/sheets/edit-account-sheet";
 import { ManageReportSheet } from "@/components/sheets/manage-report-sheet";
+import { ManageProjectSheet } from "@/components/sheets/manage-project-sheet";
 import { NewProjectSheet } from "@/components/sheets/new-project-sheet";
 import type { AccountView, ReportRow } from "@/lib/data/types";
 
@@ -175,6 +176,10 @@ function FrameInner({ children }: { children: React.ReactNode }) {
       />
       <ManageReportSheet
         reportId={sheet?.kind === "manageReport" ? sheet.reportId : null}
+        onClose={closeSheet}
+      />
+      <ManageProjectSheet
+        open={sheet?.kind === "manageProject"}
         onClose={closeSheet}
       />
     </>

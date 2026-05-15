@@ -64,8 +64,21 @@ Apify constraints to bake in:
 
 - [ ] Replace `README.md` (currently the create-next-app default) with project-specific setup instructions — env vars, scripts, branching model, deploy.
 - [ ] Set up CI in GitHub Actions running `npm run build` + `npm run lint` + `npm run typecheck` on PRs. Local builds + lint are already clean; CI just enforces.
-- [ ] Once M-3 lands: delete `src/lib/placeholder-data.ts`, drop all its imports, remove the "Placeholder data" badge from the top bar (search for `PLACEHOLDER_MODE`).
-- [ ] Once M-3 lands: flip `AUTH_ENABLED = true` in `src/proxy.ts` (and rename the file if you switch to a real proxy — Next 16 deprecation note in commit message of the original move).
+
+## Recovery work from pre-DB rounds (M-3c)
+
+Things the early rounds had that the data-layer refactor dropped on the floor — recover, but on real DB-driven data this time.
+
+- [ ] **`/reports/[id]/view` real data + PDF export.** The page is currently a stub. Restore: scoped accounts list, top-performer posts, per-category breakdown, computed health summary, "Export PDF" button (was wired via the browser's print pipeline in an earlier round). Honour `?historyId=` so history rows open the report at that send.
+- [ ] **Password protection on shared report views.** `reports.password_hash` column exists. Implement: bcrypt-hashed password set from Manage sheet; `/view` checks an HttpOnly cookie issued by a POST `/api/reports/[id]/unlock` endpoint; viewers without the cookie see a password gate matching the rest of the design.
+- [ ] **Full Apify JSON for caption mapping** (waiting on user). Captions return `(no caption)` for some accounts — likely the actor returns the body under a field we don't alias yet. Once we have a sample payload, add the right field to `mapApifyPost` in `src/lib/apify/tiktok.ts`. Vercel function logs print Object.keys when mapping bails wholesale — useful for partial successes.
+- [ ] **Per-project health-config** *(M-3b.4 — landing now via PR #37)*. Migration `0002_health_config.sql`, defaults in `src/lib/data/health.ts`, UI in the Manage project sheet.
+
+## Audit list — re-walk every PR from rounds A-M
+
+User flagged that prior UI got lost during the DB swap. Items to audit and restore where appropriate:
+
+- [ ] Round-by-round review of PRs #13 → #28 (pre-DB rounds) and the live-data rounds (#29-37). Restore anything that's still missing: dashboard hero variants, account chart configurations, report scope picker polish, etc.
 
 ## Pre-existing context the next round will need
 

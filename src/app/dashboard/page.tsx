@@ -48,10 +48,10 @@ export default function DashboardPage() {
     >();
     for (const a of accounts) {
       const ps = postsByAccount.get(a.id) ?? ([] as PostRow[]);
-      map.set(a.id, computeAccountHealth(ps));
+      map.set(a.id, computeAccountHealth(ps, project?.health_config));
     }
     return map;
-  }, [accounts, postsByAccount]);
+  }, [accounts, postsByAccount, project?.health_config]);
 
   // Top by health (with views as tiebreaker). Computed unconditionally
   // so hook order stays stable through the conditional returns below.
@@ -145,8 +145,14 @@ export default function DashboardPage() {
   }, null);
   const liveReports = reports.filter((r) => r.status === "active").length;
 
+  // 2x3 grid: Views ↔ Accounts swapped per request so the headline
+  // metric (reach) sits in the top-left and account count drops to
+  // the bottom-right utility slot.
   const grid: Stat[] = [
-    { label: "Accounts", value: accounts.length.toString() },
+    {
+      label: "Views (30d)",
+      value: totalViews > 0 ? compactNumber(totalViews) : "—",
+    },
     {
       label: "Avg health",
       value: healthScores.length > 0 ? avgHealth.toString() : "—",
@@ -164,10 +170,7 @@ export default function DashboardPage() {
       value: moversCount.toString(),
       trend: { kind: "neutral", label: `±${MOVER_THRESHOLD}%` },
     },
-    {
-      label: "Views (30d)",
-      value: totalViews > 0 ? compactNumber(totalViews) : "—",
-    },
+    { label: "Accounts", value: accounts.length.toString() },
   ];
 
   const filtered = accounts
