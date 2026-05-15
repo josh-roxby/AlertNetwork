@@ -1,5 +1,18 @@
 import { supabaseBrowser } from "@/lib/supabase";
-import type { ReportRow } from "@/lib/data/types";
+import type { ReportHistoryRow, ReportRow } from "@/lib/data/types";
+
+export async function listReportHistory(
+  reportId: string,
+): Promise<ReportHistoryRow[]> {
+  const supabase = supabaseBrowser();
+  const { data, error } = await supabase
+    .from("report_history")
+    .select("*")
+    .eq("report_id", reportId)
+    .order("sent_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ReportHistoryRow[];
+}
 
 export async function listReports(projectId: string): Promise<ReportRow[]> {
   const supabase = supabaseBrowser();
