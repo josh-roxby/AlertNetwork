@@ -1,5 +1,5 @@
 import { supabaseBrowser } from "@/lib/supabase";
-import type { ProjectRow } from "@/lib/data/types";
+import type { HealthConfig, ProjectRow } from "@/lib/data/types";
 
 export async function listProjects(): Promise<ProjectRow[]> {
   const supabase = supabaseBrowser();
@@ -48,6 +48,33 @@ export async function createProject(input: {
     .select()
     .single();
 
+  if (error) throw error;
+  return data as ProjectRow;
+}
+
+export async function updateProject(
+  id: string,
+  patch: {
+    name?: string;
+    description?: string | null;
+    health_config?: HealthConfig | null;
+  },
+): Promise<ProjectRow> {
+  const supabase = supabaseBrowser();
+  const next: Record<string, unknown> = {};
+  if (patch.name !== undefined) next.name = patch.name.trim();
+  if (patch.description !== undefined) {
+    next.description = patch.description?.trim() || null;
+  }
+  if (patch.health_config !== undefined) {
+    next.health_config = patch.health_config;
+  }
+  const { data, error } = await supabase
+    .from("projects")
+    .update(next)
+    .eq("id", id)
+    .select()
+    .single();
   if (error) throw error;
   return data as ProjectRow;
 }

@@ -1,6 +1,19 @@
 // Shared row + view types for the Supabase data layer.
 // These mirror the migration in supabase/migrations/0001_init.sql.
 
+export type HealthConfig = {
+  weights: {
+    engagement: number;
+    frequency: number;
+    recency: number;
+  };
+  targets: {
+    engagementRate: number; // 0..1, ER that scores 100
+    postsPerWeek: number; // posts/week that scores 100
+    recencyDays: number; // ramp window — older = lower recency
+  };
+};
+
 export type ProjectRow = {
   id: string;
   owner_id: string;
@@ -8,6 +21,7 @@ export type ProjectRow = {
   description: string | null;
   created_at: string;
   updated_at: string;
+  health_config: HealthConfig | null;
   // Hydrated client-side by `listProjects()` — total accounts in the
   // project. Not a DB column.
   account_count?: number;

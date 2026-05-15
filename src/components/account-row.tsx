@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useShell } from "@/components/shell-context";
+import { useShell, useActiveProject } from "@/components/shell-context";
 import { compactNumber, percent, relativeDate } from "@/lib/format";
 import { paletteBg } from "@/lib/data/palette";
 import {
@@ -16,8 +16,9 @@ const TREND_WINDOW = "WoW";
 
 export function AccountRow({ account }: { account: AccountView }) {
   const { postsByAccount } = useShell();
+  const project = useActiveProject();
   const posts = postsByAccount.get(account.id) ?? ([] as PostRow[]);
-  const health = computeAccountHealth(posts);
+  const health = computeAccountHealth(posts, project?.health_config);
   const hasPosts = posts.length > 0;
 
   const initial =

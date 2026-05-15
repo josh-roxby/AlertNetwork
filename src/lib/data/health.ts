@@ -1,9 +1,16 @@
 // Health scoring + band derivation. The DB stores raw posts only —
 // every "health" / "trend" / "median views" number you see in the UI
-// is computed client-side from a posts array. Keeping the formula in
-// one place makes it easy to tune as we learn what feels right.
+// is computed client-side from a posts array.
+//
+// The formula is the weighted average of three 0-100 subscores:
+//   - engagement: engagementRate / engagementTarget * 100, clamped
+//   - frequency: postsPerWeek / frequencyTarget * 100, clamped
+//   - recency: 100 - (ageDays / recencyDays) * 100, clamped
+//
+// Weights + targets live on each project (`projects.health_config`)
+// so owners can tune the scoring to their definition of "good".
 
-import type { PostRow } from "@/lib/data/types";
+import type { HealthConfig, PostRow } from "@/lib/data/types";
 
 export type HealthBand =
   | "excellent"
@@ -13,7 +20,7 @@ export type HealthBand =
   | "critical";
 
 export type AccountHealth = {
-  postCount: number; // posts in the window
+  postCount: number; // posts in the 30-day window
   totalViews: number;
   medianViews: number;
   totalEngagements: number; // likes + comments + shares
@@ -26,7 +33,54 @@ export type AccountHealth = {
 
 const WINDOW_DAYS = 30;
 
-export function computeAccountHealth(posts: PostRow[]): AccountHealth {
+// Baked-in defaults used when a project doesn't have its own config
+// set. The Settings UI seeds new configs from these too.
+export const DEFAULT_HEALTH_CONFIG: HealthConfig = {
+  weights: { engagement: 33, frequency: 33, recency: 34 },
+  targets: {
+    engagementRate: 0.1, // 10% ER scores 100 on the engagement axis
+    postsPerWeek: 7, // daily posting scores 100 on the frequency axis
+    recencyDays: 30, // posted today = 100, 30d ago = 0
+  },
+};
+
+// Coerce a possibly-partial / null health_config into a complete one.
+// Tolerates legacy rows, missing keys, and partial admin edits.
+export function resolveHealthConfig(
+  config: HealthConfig | null | undefined,
+): HealthConfig {
+  if (!config) return DEFAULT_HEALTH_CONFIG;
+  return {
+    weights: {
+      engagement:
+        finiteOr(config.weights?.engagement, DEFAULT_HEALTH_CONFIG.weights.engagement),
+      frequency:
+        finiteOr(config.weights?.frequency, DEFAULT_HEALTH_CONFIG.weights.frequency),
+      recency:
+        finiteOr(config.weights?.recency, DEFAULT_HEALTH_CONFIG.weights.recency),
+    },
+    targets: {
+      engagementRate: positiveOr(
+        config.targets?.engagementRate,
+        DEFAULT_HEALTH_CONFIG.targets.engagementRate,
+      ),
+      postsPerWeek: positiveOr(
+        config.targets?.postsPerWeek,
+        DEFAULT_HEALTH_CONFIG.targets.postsPerWeek,
+      ),
+      recencyDays: positiveOr(
+        config.targets?.recencyDays,
+        DEFAULT_HEALTH_CONFIG.targets.recencyDays,
+      ),
+    },
+  };
+}
+
+export function computeAccountHealth(
+  posts: PostRow[],
+  config?: HealthConfig | null,
+): AccountHealth {
+  const cfg = resolveHealthConfig(config);
   const now = Date.now();
   const windowMs = WINDOW_DAYS * 24 * 3600 * 1000;
   const recent = posts.filter(
@@ -57,25 +111,40 @@ export function computeAccountHealth(posts: PostRow[]): AccountHealth {
   const engagementRate = totalViews > 0 ? totalEngagements / totalViews : 0;
   const postsPerWeek = (recent.length / WINDOW_DAYS) * 7;
 
-  // Sub-scores, each 0..100.
-  // - engagement: 10% engagement maps to ~100. Most TikTok creators
-  //   sit at 3-8%; over 10% is exceptional.
-  const engScore = clamp(engagementRate * 1000, 0, 100);
-  // - frequency: 7 posts/week (≈daily) caps at 100. Below 1/week tails
-  //   off quickly.
-  const freqScore = clamp((postsPerWeek / 7) * 100, 0, 100);
-  // - recency: scoring posts within the last day = 100, ramping down
-  //   linearly to 0 over the WINDOW_DAYS period.
+  // Per-axis scoring uses the config's targets.
+  const engScore = clamp(
+    (engagementRate / cfg.targets.engagementRate) * 100,
+    0,
+    100,
+  );
+  const freqScore = clamp(
+    (postsPerWeek / cfg.targets.postsPerWeek) * 100,
+    0,
+    100,
+  );
   const latestPostMs = Math.max(
     ...recent.map((p) => new Date(p.posted_at).getTime()),
   );
   const ageDays = (now - latestPostMs) / (24 * 3600 * 1000);
-  const recScore = clamp(100 - (ageDays / WINDOW_DAYS) * 100, 0, 100);
+  const recScore = clamp(
+    100 - (ageDays / cfg.targets.recencyDays) * 100,
+    0,
+    100,
+  );
 
-  const healthScore = Math.round((engScore + freqScore + recScore) / 3);
+  // Weighted average of the three sub-scores. Weight sum is
+  // normalised on the fly so partial-fill configs still produce a
+  // valid 0-100 number.
+  const wSum =
+    cfg.weights.engagement + cfg.weights.frequency + cfg.weights.recency;
+  const safeSum = wSum > 0 ? wSum : 1;
+  const healthScore = Math.round(
+    (engScore * cfg.weights.engagement +
+      freqScore * cfg.weights.frequency +
+      recScore * cfg.weights.recency) /
+      safeSum,
+  );
 
-  // Trend: median views this 7d vs prior 7d. Returns 0 when there
-  // isn't enough data on either side to compare cleanly.
   const trendDelta = trendDeltaPct(recent, now);
 
   return {
@@ -160,11 +229,20 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
 }
 
+function finiteOr(n: unknown, fallback: number): number {
+  return typeof n === "number" && Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+function positiveOr(n: unknown, fallback: number): number {
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 // Aggregate health for a collection of accounts — used on the
 // reports page to show "avg health" for the report's scope.
 export function averageHealth(
   postsByAccount: Map<string, PostRow[]>,
   accountIds: string[],
+  config?: HealthConfig | null,
 ): { avgHealth: number; band: HealthBand; covered: number } {
   if (accountIds.length === 0) {
     return { avgHealth: 0, band: "critical", covered: 0 };
@@ -174,7 +252,7 @@ export function averageHealth(
   for (const id of accountIds) {
     const ps = postsByAccount.get(id) ?? [];
     if (ps.length === 0) continue;
-    total += computeAccountHealth(ps).healthScore;
+    total += computeAccountHealth(ps, config).healthScore;
     counted += 1;
   }
   if (counted === 0) {

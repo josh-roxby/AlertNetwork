@@ -3,12 +3,23 @@
 import { AnchorScroller } from "@/components/anchor-scroller";
 import { SettingsRow, SettingsSection } from "@/components/settings-row";
 import { useShell, useActiveProject } from "@/components/shell-context";
+import { resolveHealthConfig } from "@/lib/data/health";
 import { useAuthUser } from "@/lib/use-auth-user";
 
 export default function SettingsPage() {
   const { openSheet, categories, tags, accounts } = useShell();
   const project = useActiveProject();
   const user = useAuthUser();
+  const healthConfig = resolveHealthConfig(project?.health_config ?? null);
+  const wSum =
+    healthConfig.weights.engagement +
+    healthConfig.weights.frequency +
+    healthConfig.weights.recency;
+  const weightSummary = `${Math.round(
+    (healthConfig.weights.engagement / wSum) * 100,
+  )} / ${Math.round((healthConfig.weights.frequency / wSum) * 100)} / ${Math.round(
+    (healthConfig.weights.recency / wSum) * 100,
+  )}`;
 
   return (
     <>
@@ -22,6 +33,13 @@ export default function SettingsPage() {
       </section>
 
       <SettingsSection label="Project">
+        <SettingsRow
+          kind="value"
+          label="Manage project"
+          subtitle="Name, description, health-score weights and targets."
+          value="Edit"
+          onClick={() => openSheet({ kind: "manageProject" })}
+        />
         <SettingsRow kind="value" label="Name" value={project?.name ?? "—"} />
         <SettingsRow
           kind="value"
@@ -29,6 +47,13 @@ export default function SettingsPage() {
           value={project?.description ?? "—"}
         />
         <SettingsRow kind="value" label="Owner" value={user?.email ?? "—"} />
+        <SettingsRow
+          kind="value"
+          label="Health weights"
+          subtitle="Engagement / Frequency / Recency split (normalised)."
+          value={weightSummary}
+          onClick={() => openSheet({ kind: "manageProject" })}
+        />
       </SettingsSection>
 
       <SettingsSection label="Monitoring">
