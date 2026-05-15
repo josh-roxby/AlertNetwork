@@ -429,6 +429,16 @@ export function ManageReportSheet({
             )}
           </section>
 
+          <PasswordSection
+            reportId={report.id}
+            hasPassword={!!report.password_hash}
+            onChanged={async () => {
+              await refreshReports();
+              const fresh = await getReport(report.id);
+              if (fresh) setReport(fresh);
+            }}
+          />
+
           <section>
             <h3 className="t-micro mb-2 text-ink-3">Danger zone</h3>
             {confirmDelete ? (
@@ -472,5 +482,178 @@ export function ManageReportSheet({
         </>
       )}
     </Sheet>
+  );
+}
+
+function PasswordSection({
+  reportId,
+  hasPassword,
+  onChanged,
+}: {
+  reportId: string;
+  hasPassword: boolean;
+  onChanged: () => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [password, setPassword] = useState("");
+  const [status, setStatus] = useState<
+    | { kind: "idle" }
+    | { kind: "saving" }
+    | { kind: "done"; message: string }
+    | { kind: "error"; message: string }
+  >({ kind: "idle" });
+
+  async function set() {
+    if (password.length < 4) {
+      setStatus({ kind: "error", message: "Use at least 4 characters." });
+      return;
+    }
+    setStatus({ kind: "saving" });
+    try {
+      const res = await fetch(`/api/reports/${reportId}/password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+      if (!res.ok || !body.ok) {
+        setStatus({
+          kind: "error",
+          message: body.error ?? "Could not save.",
+        });
+        return;
+      }
+      setPassword("");
+      setEditing(false);
+      setStatus({ kind: "done", message: "Password set." });
+      await onChanged();
+    } catch (err) {
+      setStatus({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Network error.",
+      });
+    }
+  }
+
+  async function clear() {
+    setStatus({ kind: "saving" });
+    try {
+      const res = await fetch(`/api/reports/${reportId}/password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: null }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+      if (!res.ok || !body.ok) {
+        setStatus({
+          kind: "error",
+          message: body.error ?? "Could not clear.",
+        });
+        return;
+      }
+      setStatus({ kind: "done", message: "Password removed." });
+      await onChanged();
+    } catch (err) {
+      setStatus({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Network error.",
+      });
+    }
+  }
+
+  const busy = status.kind === "saving";
+
+  return (
+    <section className="mb-5">
+      <h3 className="t-micro mb-2 text-ink-3">Password protection</h3>
+      <p className="mb-2 t-small text-ink-3">
+        Lock the public <code>/view</code> link behind a password. Anyone
+        with the URL also needs the password before the report renders.
+      </p>
+
+      {hasPassword && !editing ? (
+        <div className="rounded-md border border-line bg-surface px-3 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="t-small text-ink">
+              Password is set.
+              <span className="ml-1 t-meta text-ink-3" style={{ fontSize: 10 }}>
+                Anyone visiting the view link will be prompted.
+              </span>
+            </span>
+            <div className="flex shrink-0 gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(true);
+                  setStatus({ kind: "idle" });
+                }}
+                disabled={busy}
+                className="tap-btn rounded-sm border border-line-2 bg-surface-2 px-3 py-1.5 t-small font-medium text-ink-2 hover:text-ink"
+              >
+                Change
+              </button>
+              <button
+                type="button"
+                onClick={clear}
+                disabled={busy}
+                className="tap-btn rounded-sm border border-line-2 bg-surface-2 px-3 py-1.5 t-small font-medium text-bad hover:bg-bad-soft"
+              >
+                {busy ? "…" : "Remove"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={hasPassword ? "New password" : "Set a password"}
+            disabled={busy}
+            className="h-10 flex-1 rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-60"
+          />
+          <button
+            type="button"
+            onClick={set}
+            disabled={busy || password.length < 4}
+            className="tap-btn rounded-sm bg-accent px-3 py-2 t-small font-semibold text-[#0A0A0A] hover:bg-accent-dim disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {busy ? "Saving…" : hasPassword ? "Update" : "Set password"}
+          </button>
+          {editing && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(false);
+                setPassword("");
+                setStatus({ kind: "idle" });
+              }}
+              className="tap-btn rounded-sm border border-line-2 bg-surface px-3 py-2 t-small font-medium text-ink-2 hover:text-ink"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      )}
+
+      {status.kind === "done" && (
+        <p className="mt-2 t-small text-good">{status.message}</p>
+      )}
+      {status.kind === "error" && (
+        <p
+          className="mt-2 rounded-sm border border-bad bg-bad-soft px-3 py-2 t-small text-bad"
+          role="alert"
+        >
+          {status.message}
+        </p>
+      )}
+    </section>
   );
 }
