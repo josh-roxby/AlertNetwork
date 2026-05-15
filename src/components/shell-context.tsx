@@ -32,7 +32,8 @@ export type SheetState =
   | { kind: "manageTeam" }
   | { kind: "categories" }
   | { kind: "tags" }
-  | { kind: "editAccount"; accountId: string };
+  | { kind: "editAccount"; accountId: string }
+  | { kind: "manageReport"; reportId: string };
 
 const ACTIVE_PROJECT_KEY = "anw-active-project";
 
