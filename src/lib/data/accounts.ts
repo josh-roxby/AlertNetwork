@@ -146,6 +146,14 @@ export async function updateAccount(
   if (error) throw error;
 }
 
+export async function deleteAccount(id: string): Promise<void> {
+  const supabase = supabaseBrowser();
+  // ON DELETE CASCADE on posts + account_tags + report_accounts in
+  // the schema cleans up the joins, so a single delete is enough.
+  const { error } = await supabase.from("accounts").delete().eq("id", id);
+  if (error) throw error;
+}
+
 // Kick the server-side scrape route for a single account. The route
 // runs Apify and upserts posts. Returns either the summary
 // (`{ scanned, written, windowHours }`) on success, or an error

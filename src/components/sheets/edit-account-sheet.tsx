@@ -1,9 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Sheet } from "@/components/sheet";
 import { useShell } from "@/components/shell-context";
-import { updateAccount } from "@/lib/data/accounts";
+import { deleteAccount, updateAccount } from "@/lib/data/accounts";
 import { ensureTag, setAccountTags } from "@/lib/data/tags";
 
 export function EditAccountSheet({
@@ -13,6 +14,7 @@ export function EditAccountSheet({
   accountId: string | null;
   onClose: () => void;
 }) {
+  const router = useRouter();
   const open = accountId !== null;
   const {
     activeProjectId,
@@ -20,8 +22,10 @@ export function EditAccountSheet({
     categories,
     refreshAccounts,
     refreshTags,
+    refreshPosts,
   } = useShell();
   const account = accountId ? accounts.find((a) => a.id === accountId) : null;
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [categoryId, setCategoryId] = useState<string>("");
   const [tags, setTags] = useState<string[]>([]);
@@ -38,6 +42,7 @@ export function EditAccountSheet({
     setTagDraft("");
     setStatus("idle");
     setErrorMessage("");
+    setConfirmDelete(false);
   }, [account]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -81,6 +86,25 @@ export function EditAccountSheet({
       setErrorMessage(
         err instanceof Error ? err.message : "Couldn't save the changes.",
       );
+    }
+  }
+
+  async function destroy() {
+    if (!account) return;
+    setStatus("saving");
+    setErrorMessage("");
+    try {
+      await deleteAccount(account.id);
+      await refreshAccounts();
+      await refreshPosts();
+      onClose();
+      router.push("/accounts");
+    } catch (err) {
+      setStatus("error");
+      setErrorMessage(
+        err instanceof Error ? err.message : "Couldn't delete the account.",
+      );
+      setConfirmDelete(false);
     }
   }
 
@@ -194,6 +218,47 @@ export function EditAccountSheet({
               {errorMessage}
             </p>
           )}
+
+          <div className="mt-6 rounded-md border border-line bg-surface p-3">
+            <div className="t-micro mb-2 text-ink-3">Danger zone</div>
+            {confirmDelete ? (
+              <div>
+                <p className="t-small text-ink-2">
+                  Delete <span className="text-ink">{account.handle}</span>?
+                  This removes the account, every cached post, and any tag
+                  links. It cannot be undone.
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(false)}
+                    disabled={disabled}
+                    className="tap-btn rounded-sm border border-line-2 bg-surface px-3 py-2 t-small font-medium text-ink-2 hover:bg-surface-2 hover:text-ink disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={destroy}
+                    disabled={disabled}
+                    className="tap-btn rounded-sm bg-bad px-3 py-2 t-small font-semibold text-[#0A0A0A] hover:opacity-90 disabled:opacity-60"
+                  >
+                    {disabled ? "Deleting…" : "Yes, delete"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                disabled={disabled}
+                className="tap-row flex w-full items-center justify-between rounded-sm border border-line-2 bg-surface-2 px-3 py-2 text-left text-bad hover:bg-bad-soft disabled:opacity-60"
+              >
+                <span className="t-small font-medium">Delete account</span>
+                <span aria-hidden>×</span>
+              </button>
+            )}
+          </div>
         </>
       )}
     </Sheet>

@@ -129,6 +129,47 @@ export async function listPostsForProject(
   return (data ?? []) as unknown as PostRow[];
 }
 
+// Per-day aggregate over the last `days` UTC days. Buckets are zero-
+// filled so the chart line draws across empty days without breaks.
+export type DailyPoint = {
+  date: string; // YYYY-MM-DD (UTC)
+  views: number;
+  posts: number;
+  engagement: number; // 0..1, weighted by views per day
+  likes: number;
+};
+
+export function dailySeries(posts: PostRow[], days: number): DailyPoint[] {
+  const buckets = new Map<
+    string,
+    { views: number; posts: number; eng: number; likes: number }
+  >();
+  const now = new Date();
+  now.setUTCHours(0, 0, 0, 0);
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setUTCDate(d.getUTCDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    buckets.set(key, { views: 0, posts: 0, eng: 0, likes: 0 });
+  }
+  for (const p of posts) {
+    const key = p.posted_at.slice(0, 10);
+    const b = buckets.get(key);
+    if (!b) continue;
+    b.views += p.views;
+    b.posts += 1;
+    b.eng += p.likes + p.comments + p.shares;
+    b.likes += p.likes;
+  }
+  return Array.from(buckets.entries()).map(([date, b]) => ({
+    date,
+    views: b.views,
+    posts: b.posts,
+    likes: b.likes,
+    engagement: b.views > 0 ? b.eng / b.views : 0,
+  }));
+}
+
 // Compute simple aggregate stats from a posts array. Cheap enough to
 // do client-side for the volumes we care about (≤50 posts/account).
 export function accountPostStats(posts: PostRow[]): AccountPostStats {

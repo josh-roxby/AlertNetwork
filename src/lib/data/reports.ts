@@ -53,6 +53,9 @@ export async function createReport(input: {
       cadence: input.cadence,
       schedule,
       scope_kind: input.scope.kind,
+      // Reports start live by default — cron picks them up on the
+      // next scheduled day. The Manage sheet flips to Paused if the
+      // user wants to skip a cycle.
       status: "active",
       is_featured: false,
     })

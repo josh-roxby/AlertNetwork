@@ -1,9 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { getAccount, triggerAccountScrape } from "@/lib/data/accounts";
-import { listPostsForAccount } from "@/lib/data/posts";
+import { dailySeries, listPostsForAccount } from "@/lib/data/posts";
 import { paletteBg } from "@/lib/data/palette";
 import {
   BAND_BG,
@@ -13,9 +26,14 @@ import {
 } from "@/lib/data/health";
 import { compactNumber, percent, relativeDate } from "@/lib/format";
 import { SkeletonAccountDetail } from "@/components/skeletons";
+import { TabNav } from "@/components/tab-nav";
 import { useShell } from "@/components/shell-context";
 import { IconChevronRight } from "@/components/icons";
 import type { AccountView, PostRow } from "@/lib/data/types";
+
+type ChartRange = "7d" | "30d" | "90d";
+const RANGE_DAYS: Record<ChartRange, number> = { "7d": 7, "30d": 30, "90d": 90 };
+type DetailTab = "charts" | "posts";
 
 export function AccountDetail({ accountId }: { accountId: string }) {
   const { refreshAccounts, refreshPosts, openSheet } = useShell();
@@ -24,6 +42,8 @@ export function AccountDetail({ accountId }: { accountId: string }) {
   const [status, setStatus] = useState<"loading" | "ready" | "missing">(
     "loading",
   );
+  const [tab, setTab] = useState<DetailTab>("charts");
+  const [range, setRange] = useState<ChartRange>("30d");
   const [scrapeState, setScrapeState] = useState<
     | { kind: "idle" }
     | { kind: "scraping" }
@@ -40,7 +60,11 @@ export function AccountDetail({ accountId }: { accountId: string }) {
     setAccount(row);
     setStatus("ready");
     try {
-      const ps = await listPostsForAccount(accountId, { limit: 30 });
+      // 120-day window covers the 7/30/90d chart selector with
+      // headroom while keeping the payload bounded.
+      const ps = await listPostsForAccount(accountId, {
+        sinceHours: 24 * 120,
+      });
       setPosts(ps);
     } catch {
       setPosts([]);
@@ -238,32 +262,308 @@ export function AccountDetail({ accountId }: { accountId: string }) {
         </p>
       )}
 
-      <section>
-        <div className="mb-2 flex items-center justify-between px-1">
-          <h2 className="t-h1 text-ink">Recent posts</h2>
-          <span data-numeric className="t-small text-ink-3">
-            {posts.length === 0 ? "0" : `${posts.length} cached`}
-          </span>
-        </div>
-        {posts.length === 0 ? (
-          <div className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-8 text-center">
-            <p className="t-body text-ink-2">No posts cached yet.</p>
-            <p className="mx-auto mt-1 max-w-[36ch] t-small text-ink-3">
-              Hit Rescan now to fetch the last 7 days from TikTok, or wait
-              for the daily cron at 08:00 UTC.
-            </p>
-          </div>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {posts.map((p) => (
-              <li key={p.id}>
-                <PostRowCard post={p} />
-              </li>
-            ))}
-          </ul>
-        )}
+      <section className="mb-3">
+        <TabNav<"charts" | "posts">
+          tabs={[
+            { id: "charts", label: "Charts" },
+            { id: "posts", label: `Posts · ${posts.length}` },
+          ]}
+          active={tab}
+          onChange={setTab}
+        />
       </section>
+
+      {tab === "charts" ? (
+        <ChartsPanel posts={posts} range={range} onRange={setRange} />
+      ) : (
+        <section>
+          {posts.length === 0 ? (
+            <div className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-8 text-center">
+              <p className="t-body text-ink-2">No posts cached yet.</p>
+              <p className="mx-auto mt-1 max-w-[36ch] t-small text-ink-3">
+                Hit Rescan now to fetch the last 7 days from TikTok, or wait
+                for the daily cron at 08:00 UTC.
+              </p>
+            </div>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {posts.map((p) => (
+                <li key={p.id}>
+                  <PostRowCard post={p} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
     </>
+  );
+}
+
+function ChartsPanel({
+  posts,
+  range,
+  onRange,
+}: {
+  posts: PostRow[];
+  range: ChartRange;
+  onRange: (r: ChartRange) => void;
+}) {
+  const series = useMemo(
+    () => dailySeries(posts, RANGE_DAYS[range]),
+    [posts, range],
+  );
+
+  const hasAny = posts.length > 0;
+
+  return (
+    <>
+      <section className="mb-3 flex items-center justify-between">
+        <h2 className="t-h1 text-ink">Trends</h2>
+        <RangeSelector value={range} onChange={onRange} />
+      </section>
+
+      {!hasAny ? (
+        <div className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-10 text-center">
+          <p className="t-body text-ink-2">No data to chart yet.</p>
+          <p className="mx-auto mt-1 max-w-[36ch] t-small text-ink-3">
+            Run a scrape — once posts land in the DB the charts plot daily
+            views, engagement and post frequency.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <ChartCard
+            label="Daily views"
+            value={compactNumber(series.reduce((s, p) => s + p.views, 0))}
+            valueLabel={`total · ${range}`}
+            chart={
+              <ResponsiveContainer width="100%" height={150}>
+                <AreaChart data={series} margin={CHART_MARGIN}>
+                  <defs>
+                    <linearGradient id="views-fill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.32} />
+                      <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
+                  <XAxis {...X_AXIS} />
+                  <YAxis
+                    {...Y_AXIS}
+                    width={36}
+                    tickFormatter={(v: number) => compactNumber(v)}
+                  />
+                  <Tooltip content={<ChartTooltip formatter={compactNumber} />} />
+                  <Area
+                    type="monotone"
+                    dataKey="views"
+                    stroke="var(--accent)"
+                    strokeWidth={2}
+                    fill="url(#views-fill)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            }
+          />
+
+          <ChartCard
+            label="Engagement rate"
+            value={percent(
+              series.reduce((s, p) => s + p.engagement, 0) / series.length,
+              1,
+            )}
+            valueLabel="avg per day"
+            chart={
+              <ResponsiveContainer width="100%" height={150}>
+                <LineChart data={series} margin={CHART_MARGIN}>
+                  <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
+                  <XAxis {...X_AXIS} />
+                  <YAxis
+                    {...Y_AXIS}
+                    width={36}
+                    tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
+                  />
+                  <Tooltip
+                    content={
+                      <ChartTooltip formatter={(n: number) => percent(n, 1)} />
+                    }
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="engagement"
+                    stroke="var(--good)"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            }
+          />
+
+          <ChartCard
+            label="Posts per day"
+            value={series.reduce((s, p) => s + p.posts, 0).toString()}
+            valueLabel={`total · ${range}`}
+            chart={
+              <ResponsiveContainer width="100%" height={130}>
+                <BarChart data={series} margin={CHART_MARGIN}>
+                  <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
+                  <XAxis {...X_AXIS} />
+                  <YAxis
+                    {...Y_AXIS}
+                    width={28}
+                    allowDecimals={false}
+                  />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Bar dataKey="posts" fill="var(--info)" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            }
+          />
+
+          <ChartCard
+            label="Likes per day"
+            value={compactNumber(series.reduce((s, p) => s + p.likes, 0))}
+            valueLabel={`total · ${range}`}
+            chart={
+              <ResponsiveContainer width="100%" height={150}>
+                <LineChart data={series} margin={CHART_MARGIN}>
+                  <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
+                  <XAxis {...X_AXIS} />
+                  <YAxis
+                    {...Y_AXIS}
+                    width={32}
+                    tickFormatter={(v: number) => compactNumber(v)}
+                  />
+                  <Tooltip content={<ChartTooltip formatter={compactNumber} />} />
+                  <Line
+                    type="monotone"
+                    dataKey="likes"
+                    stroke="var(--ink)"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            }
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+const CHART_MARGIN = { top: 8, right: 0, bottom: 0, left: -12 };
+
+const X_AXIS = {
+  dataKey: "date" as const,
+  tick: {
+    fontSize: 10,
+    fill: "var(--ink-3)",
+    fontFamily: "var(--font-mono)",
+  },
+  tickFormatter: (d: string) => d.slice(5).replace("-", "/"),
+  tickLine: false,
+  axisLine: { stroke: "var(--line-2)" },
+  minTickGap: 28,
+};
+
+const Y_AXIS = {
+  tick: {
+    fontSize: 10,
+    fill: "var(--ink-3)",
+    fontFamily: "var(--font-mono)",
+  },
+  tickLine: false,
+  axisLine: false as const,
+};
+
+function RangeSelector({
+  value,
+  onChange,
+}: {
+  value: ChartRange;
+  onChange: (r: ChartRange) => void;
+}) {
+  const options: ChartRange[] = ["7d", "30d", "90d"];
+  return (
+    <div className="inline-flex rounded-sm border border-line-2 bg-surface-2 p-1">
+      {options.map((o) => (
+        <button
+          key={o}
+          type="button"
+          onClick={() => onChange(o)}
+          className={`tap-btn rounded-xs px-2.5 py-1 t-small font-medium transition-colors duration-[120ms] ${
+            o === value ? "bg-bg text-ink" : "text-ink-3 hover:text-ink"
+          }`}
+        >
+          {o}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ChartCard({
+  label,
+  value,
+  valueLabel,
+  chart,
+}: {
+  label: string;
+  value: string;
+  valueLabel: string;
+  chart: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-md border border-line bg-surface">
+      <div className="flex items-baseline justify-between border-b border-line px-3 py-2">
+        <span className="t-micro text-ink-3">{label}</span>
+        <span className="flex items-baseline gap-1.5">
+          <span
+            data-numeric
+            className="text-ink"
+            style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}
+          >
+            {value}
+          </span>
+          <span className="t-meta text-ink-4" style={{ fontSize: 9 }}>
+            {valueLabel}
+          </span>
+        </span>
+      </div>
+      <div className="px-1 py-2">{chart}</div>
+    </div>
+  );
+}
+
+type TooltipPayload = {
+  active?: boolean;
+  payload?: { value: number }[];
+  label?: string;
+};
+
+function ChartTooltip({
+  active,
+  payload,
+  label,
+  formatter,
+}: TooltipPayload & {
+  formatter?: (n: number) => string;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+  const value = payload[0].value;
+  const display = formatter ? formatter(value) : value.toString();
+  return (
+    <div
+      className="rounded-sm border border-line-2 bg-surface px-2.5 py-1.5 shadow-[var(--sh-md)]"
+      style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}
+    >
+      <div className="text-ink">{display}</div>
+      <div className="text-ink-3" style={{ fontSize: 9 }}>
+        {label}
+      </div>
+    </div>
   );
 }
 
