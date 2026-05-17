@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { isCronAuthorised } from "@/lib/cron-auth";
 
 export const maxDuration = 60;
 
-// POST /api/cron/reports
+// /api/cron/reports
 //
-// Daily trigger from the GitHub Actions workflow (alongside the scrape
-// step). Picks reports that are due "today" based on cadence:
+// Daily trigger — Vercel Cron (GET, see vercel.json) and the GitHub
+// Actions workflow (POST). Picks reports due "today" by cadence:
 //   - weekly  → Monday (UTC)
 //   - monthly → 1st (UTC)
 // For each due report, stamps `last_sent_at` and inserts a
@@ -14,20 +15,29 @@ export const maxDuration = 60;
 // lands later — for now this is the "generation" event that decouples
 // the cron schedule from the scrape (reports compile from already-
 // persisted posts; they don't trigger a scrape).
-//
-// Auth: `Authorization: Bearer ${CRON_SHARED_SECRET}` — same secret as
-// the scrape cron.
 
 type Body = { dryRun?: boolean; force?: boolean };
 
+export async function GET(request: NextRequest) {
+  return run(request);
+}
+
 export async function POST(request: NextRequest) {
-  const auth = request.headers.get("authorization") ?? "";
-  const secret = process.env.CRON_SHARED_SECRET;
-  if (!secret || auth !== `Bearer ${secret}`) {
+  return run(request);
+}
+
+async function run(request: NextRequest) {
+  if (!isCronAuthorised(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as Body;
+  // Body is only honoured on POST (GET has no body in Vercel Cron).
+  // Vercel Cron is a regular run; dry-run / force flags stay
+  // POST-only via the GitHub workflow or curl.
+  let body: Body = {};
+  if (request.method === "POST") {
+    body = (await request.json().catch(() => ({}))) as Body;
+  }
 
   // UTC day-of-week + day-of-month determine which cadences run today.
   // `force` bypasses the date check (for manual workflow_dispatch) and

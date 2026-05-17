@@ -1,30 +1,51 @@
 name: daily-scrape
 
-# Daily TikTok scrape across every account in every project. Hits the
-# server-side `/api/cron/daily` route which authenticates via the
-# `CRON_SHARED_SECRET` bearer token and loops accounts using the
-# service-role Supabase client.
+# Daily TikTok scrape + report dispatch. Belt-and-braces for the
+# Vercel Cron in vercel.json — that's the primary trigger, this
+# workflow runs slightly later as a backup in case Vercel's cron
+# misses a day.
+#
+# GitHub Actions scheduled workflows can be delayed (or occasionally
+# skipped) during high-load minutes. We use 23 / 40 — non-aligned
+# minutes get prioritised over the heavily-contended :00 minute.
 #
 # Required configuration in the GitHub repo:
 #   - Variable `APP_URL` — production URL, e.g.
 #     `https://alertnetwork.vercel.app` (Settings → Secrets and
 #     variables → Actions → Variables tab)
-#   - Secret `CRON_SHARED_SECRET` — same value as Vercel env
+#   - Secret `CRON_SHARED_SECRET` — same value as Vercel env (either
+#     `CRON_SHARED_SECRET` or `CRON_SECRET` — the routes accept both)
 
 on:
   schedule:
-    # 08:00 UTC every day
-    - cron: "0 8 * * *"
+    # 08:23 UTC every day — offset by ~10 mins from the Vercel cron
+    # (08:13) to act as a backup, and on an off-the-hour minute to
+    # avoid GitHub's contention queue.
+    - cron: "23 8 * * *"
   # Manual trigger for ad-hoc runs from the Actions tab.
   workflow_dispatch:
+    inputs:
+      skip-scrape:
+        description: "Skip the scrape step (only run report dispatch)"
+        required: false
+        default: "false"
+      skip-reports:
+        description: "Skip the report dispatch step"
+        required: false
+        default: "false"
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - name: Sanity-check configuration
+      - name: Diagnostics
+        env:
+          EVENT_NAME: ${{ github.event_name }}
         run: |
+          echo "Triggered by: $EVENT_NAME"
+          echo "Workflow run UTC: $(date -u --iso-8601=seconds)"
+          echo "Vars + secrets check:"
           if [ -z "${{ vars.APP_URL }}" ]; then
             echo "::error::Repository variable APP_URL is not set."
             exit 1
@@ -33,16 +54,17 @@ jobs:
             echo "::error::Repository secret CRON_SHARED_SECRET is not set."
             exit 1
           fi
+          echo "  APP_URL is set"
+          echo "  CRON_SHARED_SECRET is set"
 
       - name: Trigger daily scrape
+        if: ${{ github.event.inputs.skip-scrape != 'true' }}
         env:
           APP_URL: ${{ vars.APP_URL }}
           CRON_SHARED_SECRET: ${{ secrets.CRON_SHARED_SECRET }}
         run: |
           set -euo pipefail
           echo "POST ${APP_URL}/api/cron/daily"
-          # --fail-with-body exits non-zero on 4xx/5xx but still prints
-          # the body so the Action log captures any error message.
           curl --fail-with-body \
             --silent --show-error \
             --max-time 300 \
@@ -50,8 +72,10 @@ jobs:
             --header "Authorization: Bearer ${CRON_SHARED_SECRET}" \
             --header "Content-Type: application/json" \
             "${APP_URL}/api/cron/daily"
+          echo ""
 
       - name: Trigger report dispatch
+        if: ${{ github.event.inputs.skip-reports != 'true' }}
         env:
           APP_URL: ${{ vars.APP_URL }}
           CRON_SHARED_SECRET: ${{ secrets.CRON_SHARED_SECRET }}
@@ -68,3 +92,4 @@ jobs:
             --header "Authorization: Bearer ${CRON_SHARED_SECRET}" \
             --header "Content-Type: application/json" \
             "${APP_URL}/api/cron/reports"
+          echo ""

@@ -7,6 +7,7 @@ import {
   scrapeTikTokUrls,
 } from "@/lib/apify/tiktok";
 import { bumpAccountLastScraped, upsertPosts } from "@/lib/data/posts";
+import { isCronAuthorised } from "@/lib/cron-auth";
 
 // 5 minutes — enough for one batched Apify call covering ~100 accounts.
 // Hobby plan caps at 60s; this needs Pro or a self-hosted runner.
@@ -15,17 +16,27 @@ export const maxDuration = 300;
 const DEFAULT_WINDOW_HOURS = 48;
 const DEFAULT_MAX_ITEMS_PER_ACCOUNT = 50;
 
-// POST /api/cron/daily
+// /api/cron/daily
 //
-// Triggered by the GitHub Actions workflow at 08:00 UTC daily. Loops
-// every account across every project (service-role read), batches them
-// into a single Apify run, then maps results back to accounts by
-// handle and upserts the per-account posts. Authed via the shared
-// secret in `Authorization: Bearer ${CRON_SHARED_SECRET}`.
+// Triggered daily — primarily by Vercel Cron (GET — see vercel.json),
+// secondarily by the GitHub Actions workflow (POST — see
+// .github/workflows/cron.yml). Both auth via a shared bearer secret;
+// see src/lib/cron-auth.ts.
+//
+// Loops every account across every project (service-role read),
+// batches them into a single Apify run, then maps results back to
+// accounts by handle and upserts the per-account posts.
+
+export async function GET(request: NextRequest) {
+  return run(request);
+}
+
 export async function POST(request: NextRequest) {
-  const auth = request.headers.get("authorization") ?? "";
-  const secret = process.env.CRON_SHARED_SECRET;
-  if (!secret || auth !== `Bearer ${secret}`) {
+  return run(request);
+}
+
+async function run(request: NextRequest) {
+  if (!isCronAuthorised(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -111,6 +122,10 @@ export async function POST(request: NextRequest) {
       });
     }
   }
+
+  console.info(
+    `[cron/daily] accounts=${accounts.length} successful=${results.filter((r) => !r.error).length} failed=${results.filter((r) => r.error).length}`,
+  );
 
   return NextResponse.json({
     totalAccounts: accounts.length,
