@@ -72,7 +72,11 @@ Things the early rounds had that the data-layer refactor dropped on the floor �
 - [ ] **`/reports/[id]/view` real data + PDF export.** The page is currently a stub. Restore: scoped accounts list, top-performer posts, per-category breakdown, computed health summary, "Export PDF" button (was wired via the browser's print pipeline in an earlier round). Honour `?historyId=` so history rows open the report at that send.
 - [ ] **Password protection on shared report views.** `reports.password_hash` column exists. Implement: bcrypt-hashed password set from Manage sheet; `/view` checks an HttpOnly cookie issued by a POST `/api/reports/[id]/unlock` endpoint; viewers without the cookie see a password gate matching the rest of the design.
 - [ ] **Full Apify JSON for caption mapping** (waiting on user). Captions return `(no caption)` for some accounts — likely the actor returns the body under a field we don't alias yet. Once we have a sample payload, add the right field to `mapApifyPost` in `src/lib/apify/tiktok.ts`. Vercel function logs print Object.keys when mapping bails wholesale — useful for partial successes.
-- [ ] **Per-project health-config** *(M-3b.4 — landing now via PR #37)*. Migration `0002_health_config.sql`, defaults in `src/lib/data/health.ts`, UI in the Manage project sheet.
+- [x] **Per-project health-config** *(M-3b.4 — landing now via PR #37)*. Migration `0002_health_config.sql`, defaults in `src/lib/data/health.ts`, UI in the Manage project sheet. *Migration applied to the live Supabase project on 2026-05-19 via MCP.*
+
+## Carry-overs from 2026-05-19 cron debug
+
+- [ ] **Multi-user / project sharing.** TODO.md previously locked us into single-owner. User wants invited viewers (read-only). Plan: new `project_members(project_id, user_id, role)` table where `role in ('viewer','editor')`; RLS policies on every project-scoped table expand to `owner_id = auth.uid() OR exists (select 1 from project_members where project_id = … and user_id = auth.uid())`; new "Manage team" sheet replaces the placeholder; invitations by email (magic-link signup if not yet a user). Separate branch / PR.
 
 ## Audit list — re-walk every PR from rounds A-M
 
