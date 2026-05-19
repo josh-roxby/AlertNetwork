@@ -13,7 +13,10 @@ import { isCronAuthorised } from "@/lib/cron-auth";
 // Hobby plan caps at 60s; this needs Pro or a self-hosted runner.
 export const maxDuration = 300;
 
-const DEFAULT_WINDOW_HOURS = 48;
+// 7-day window: wider than strictly needed for a daily run, but covers
+// us if a day is missed (Vercel cron failure, deploy gap, etc.) so the
+// next successful run still backfills the gap.
+const DEFAULT_WINDOW_HOURS = 168;
 const DEFAULT_MAX_ITEMS_PER_ACCOUNT = 50;
 
 // /api/cron/daily

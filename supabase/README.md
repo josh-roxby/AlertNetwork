@@ -46,3 +46,12 @@ Plain SQL files in `migrations/`. Numbered with a four-digit prefix (`0001_…`,
 2. Write only the diff from the previous state.
 3. Run it in the Supabase SQL editor against every environment (local / staging / prod).
 4. Commit the file in the same PR that uses the new schema.
+
+## Cron auth (Vercel + GitHub Actions)
+
+The cron routes (`/api/cron/daily`, `/api/cron/reports`) accept either of two bearer tokens via `src/lib/cron-auth.ts`:
+
+- `CRON_SHARED_SECRET` — used by the GitHub Actions backup workflow (`.github/workflows/cron.yml`), which manually attaches `Authorization: Bearer ${CRON_SHARED_SECRET}`.
+- `CRON_SECRET` — used by **Vercel Cron**. Vercel only attaches the Authorization header to its outgoing cron requests if an env var named exactly `CRON_SECRET` exists in the project. Setting `CRON_SHARED_SECRET` alone is not enough — the Vercel cron will fire with no auth header and the route will 401.
+
+Set **both** env vars in Vercel (Production / Preview / Development) to the same value. Mirror `CRON_SHARED_SECRET` as a GitHub Actions repository secret, and set `APP_URL` as a repository variable.
