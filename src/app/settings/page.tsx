@@ -7,7 +7,7 @@ import { resolveHealthConfig } from "@/lib/data/health";
 import { useAuthUser } from "@/lib/use-auth-user";
 
 export default function SettingsPage() {
-  const { openSheet, categories, tags, accounts } = useShell();
+  const { openSheet, categories, tags, accounts, isOwner } = useShell();
   const project = useActiveProject();
   const user = useAuthUser();
   const healthConfig = resolveHealthConfig(project?.health_config ?? null);
@@ -33,26 +33,28 @@ export default function SettingsPage() {
       </section>
 
       <SettingsSection label="Project">
-        <SettingsRow
-          kind="value"
-          label="Manage project"
-          subtitle="Name, description, health-score weights and targets."
-          value="Edit"
-          onClick={() => openSheet({ kind: "manageProject" })}
-        />
+        {isOwner && (
+          <SettingsRow
+            kind="value"
+            label="Manage project"
+            subtitle="Name, description, health-score weights and targets."
+            value="Edit"
+            onClick={() => openSheet({ kind: "manageProject" })}
+          />
+        )}
         <SettingsRow kind="value" label="Name" value={project?.name ?? "—"} />
         <SettingsRow
           kind="value"
           label="Description"
           value={project?.description ?? "—"}
         />
-        <SettingsRow kind="value" label="Owner" value={user?.email ?? "—"} />
+        <SettingsRow kind="value" label="Signed in as" value={user?.email ?? "—"} />
         <SettingsRow
           kind="value"
           label="Health weights"
           subtitle="Engagement / Frequency / Recency split (normalised)."
           value={weightSummary}
-          onClick={() => openSheet({ kind: "manageProject" })}
+          onClick={isOwner ? () => openSheet({ kind: "manageProject" }) : undefined}
         />
       </SettingsSection>
 
@@ -76,8 +78,12 @@ export default function SettingsPage() {
         <SettingsRow
           kind="value"
           label="Members"
-          value="1"
-          subtitle="Single-owner workspaces in v1."
+          value={isOwner ? "Manage" : "View"}
+          subtitle={
+            isOwner
+              ? "Invite viewers — read-only access to dashboard, accounts and reports."
+              : "You have view-only access to this project."
+          }
           onClick={() => openSheet({ kind: "manageTeam" })}
         />
       </SettingsSection>
@@ -88,13 +94,13 @@ export default function SettingsPage() {
           kind="value"
           label="Categories"
           value={categories.length.toString()}
-          onClick={() => openSheet({ kind: "categories" })}
+          onClick={isOwner ? () => openSheet({ kind: "categories" }) : undefined}
         />
         <SettingsRow
           kind="value"
           label="Project tags"
           value={tags.length.toString()}
-          onClick={() => openSheet({ kind: "tags" })}
+          onClick={isOwner ? () => openSheet({ kind: "tags" }) : undefined}
         />
       </SettingsSection>
 

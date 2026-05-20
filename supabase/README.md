@@ -17,7 +17,14 @@ Schema and migrations for the AlertNetwork Postgres database.
 
 ## Tenancy model
 
-Single owner per project. `projects.owner_id` is the only authorisation root — every other table cascades through `project_id` (or `account_id → project_id`). RLS policies enforce this on the wire so the browser client can't read or write rows it doesn't own.
+**Owner + viewers per project.** `projects.owner_id` identifies the single owner. The `project_members` table holds additional users with `role = 'viewer'` — they get `SELECT` on every project-scoped table but no `INSERT` / `UPDATE` / `DELETE` (only the owner mutates). The split is enforced by RLS via two SQL helper functions:
+
+- `is_project_member(project_id)` — owner OR viewer; gates every SELECT policy.
+- `is_project_owner(project_id)` — strict owner check; gates every write policy.
+
+Viewers are invited by the owner from Settings → Team & access. The invite uses Supabase's `auth.admin.inviteUserByEmail` (server-side, via the service role) which both creates the `auth.users` row and emails a magic-link.
+
+**Invite-only sign-in.** The `/auth/callback` route checks that the freshly-authenticated user owns at least one project or appears in `project_members`. If not, it signs them out and redirects back to `/login?error=invite-only`. So anyone who knows the Supabase URL can request a magic-link, but they can't land in the app without a prior invite.
 
 The cron path (`/api/cron/daily`) needs to read every account across users to schedule scrapes — that path uses the **service-role** client, which bypasses RLS. The service-role key must never reach the browser bundle.
 

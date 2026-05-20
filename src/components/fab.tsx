@@ -73,9 +73,21 @@ function FabBase({
   style: { bottom: number; right: number };
 }) {
   const pathname = usePathname();
-  const { openDrawer, openSheet } = useShell();
+  const { openDrawer, openSheet, isOwner } = useShell();
   const spec = fabForPath(pathname, surface);
   if (spec.kind === "none") return null;
+
+  // Viewers don't get the per-page "create" affordance. The view-in-
+  // new-tab eye on a specific report is still useful for them, and
+  // the settings page's "Manage team" sheet lets them see who's on
+  // the project (read-only). Everything else is owner-only.
+  if (
+    spec.kind === "sheet" &&
+    !isOwner &&
+    spec.sheet !== "manageTeam"
+  ) {
+    return null;
+  }
 
   if (spec.kind === "link") {
     return (

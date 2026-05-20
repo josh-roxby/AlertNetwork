@@ -36,6 +36,7 @@ export default function DashboardPage() {
     posts,
     postsByAccount,
     openSheet,
+    isOwner,
   } = useShell();
   const project = useActiveProject();
   const [filter, setFilter] = useState<DashboardFilter>("all");
@@ -108,10 +109,14 @@ export default function DashboardPage() {
   if (accounts.length === 0) {
     return (
       <EmptyState
-        title="Add your first account"
-        body={`No accounts in ${project?.name ?? "this project"} yet. Paste a TikTok profile URL to start monitoring it.`}
-        cta="Add account"
-        onCta={() => openSheet({ kind: "addAccount" })}
+        title={isOwner ? "Add your first account" : "No accounts yet"}
+        body={
+          isOwner
+            ? `No accounts in ${project?.name ?? "this project"} yet. Paste a TikTok profile URL to start monitoring it.`
+            : `${project?.name ?? "This project"} doesn't have any accounts yet — the owner hasn't added any.`
+        }
+        cta={isOwner ? "Add account" : undefined}
+        onCta={isOwner ? () => openSheet({ kind: "addAccount" }) : undefined}
       />
     );
   }
@@ -399,8 +404,8 @@ function EmptyState({
 }: {
   title: string;
   body: string;
-  cta: string;
-  onCta: () => void;
+  cta?: string;
+  onCta?: () => void;
 }) {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-2 text-center">
@@ -412,14 +417,16 @@ function EmptyState({
       </span>
       <h1 className="t-display-3 uppercase text-ink">{title}</h1>
       <p className="mt-2 max-w-[32ch] t-body text-ink-2">{body}</p>
-      <button
-        type="button"
-        onClick={onCta}
-        className="tap-btn mt-5 inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
-      >
-        <IconPlus stroke="#0A0A0A" />
-        {cta}
-      </button>
+      {cta && onCta && (
+        <button
+          type="button"
+          onClick={onCta}
+          className="tap-btn mt-5 inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
+        >
+          <IconPlus stroke="#0A0A0A" />
+          {cta}
+        </button>
+      )}
     </div>
   );
 }

@@ -7,7 +7,8 @@ import { IconPlus } from "@/components/icons";
 import { SkeletonProjectList } from "@/components/skeletons";
 
 export default function ReportsPage() {
-  const { activeProjectId, reports, reportsLoading, openSheet } = useShell();
+  const { activeProjectId, reports, reportsLoading, openSheet, isOwner } =
+    useShell();
   const project = useActiveProject();
 
   if (!activeProjectId) {
@@ -37,17 +38,21 @@ export default function ReportsPage() {
         <h1 className="t-display-3 uppercase text-ink">No reports yet</h1>
         <p className="mt-2 max-w-[34ch] t-body text-ink-2">
           A report is a scheduled summary of accounts in{" "}
-          {project?.name ?? "this project"}. Create one to send metrics on a
-          weekly or monthly cadence.
+          {project?.name ?? "this project"}.
+          {isOwner
+            ? " Create one to send metrics on a weekly or monthly cadence."
+            : " The project owner hasn't created any yet."}
         </p>
-        <button
-          type="button"
-          onClick={() => openSheet({ kind: "newReport" })}
-          className="tap-btn mt-5 inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
-        >
-          <IconPlus stroke="#0A0A0A" />
-          New report
-        </button>
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() => openSheet({ kind: "newReport" })}
+            className="tap-btn mt-5 inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
+          >
+            <IconPlus stroke="#0A0A0A" />
+            New report
+          </button>
+        )}
       </div>
     );
   }
@@ -61,14 +66,16 @@ export default function ReportsPage() {
             Scheduled summaries for {project?.name ?? "this project"}.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => openSheet({ kind: "newReport" })}
-          className="tap-btn inline-flex shrink-0 items-center gap-1.5 rounded-sm bg-accent px-3 py-2 t-small font-semibold text-[#0A0A0A] hover:bg-accent-dim"
-        >
-          <IconPlus stroke="#0A0A0A" />
-          New
-        </button>
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() => openSheet({ kind: "newReport" })}
+            className="tap-btn inline-flex shrink-0 items-center gap-1.5 rounded-sm bg-accent px-3 py-2 t-small font-semibold text-[#0A0A0A] hover:bg-accent-dim"
+          >
+            <IconPlus stroke="#0A0A0A" />
+            New
+          </button>
+        )}
       </section>
 
       <ul className="flex flex-col gap-2">
