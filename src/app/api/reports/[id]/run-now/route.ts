@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { buildReportSnapshot } from "@/lib/data/report-snapshot";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 // POST /api/reports/[id]/run-now
 //
@@ -44,7 +45,7 @@ export async function POST(
   const nowIso = new Date().toISOString();
 
   try {
-    const scoped = await countScopedAccounts(admin, reportId);
+    const payload = await buildReportSnapshot(admin, reportId);
 
     const { error: updErr } = await admin
       .from("reports")
@@ -57,7 +58,8 @@ export async function POST(
       sent_at: nowIso,
       status: "delivered",
       recipients: 0,
-      accounts: scoped,
+      accounts: payload.totals.account_count,
+      payload,
     });
     if (histErr) throw histErr;
 
@@ -66,51 +68,10 @@ export async function POST(
       reportId,
       name: report.name,
       sentAt: nowIso,
-      accounts: scoped,
+      accounts: payload.totals.account_count,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Run failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
-
-async function countScopedAccounts(
-  admin: ReturnType<typeof supabaseAdmin>,
-  reportId: string,
-): Promise<number> {
-  const { data: report, error: rErr } = await admin
-    .from("reports")
-    .select("scope_kind, project_id")
-    .eq("id", reportId)
-    .single();
-  if (rErr || !report) return 0;
-
-  if (report.scope_kind === "project") {
-    const { count } = await admin
-      .from("accounts")
-      .select("*", { count: "exact", head: true })
-      .eq("project_id", report.project_id);
-    return count ?? 0;
-  }
-  if (report.scope_kind === "account") {
-    const { count } = await admin
-      .from("report_accounts")
-      .select("*", { count: "exact", head: true })
-      .eq("report_id", reportId);
-    return count ?? 0;
-  }
-  if (report.scope_kind === "category") {
-    const { data: rc } = await admin
-      .from("report_categories")
-      .select("category_id")
-      .eq("report_id", reportId);
-    if (!rc || rc.length === 0) return 0;
-    const categoryIds = rc.map((r) => r.category_id as string);
-    const { count } = await admin
-      .from("accounts")
-      .select("*", { count: "exact", head: true })
-      .in("category_id", categoryIds);
-    return count ?? 0;
-  }
-  return 0;
 }

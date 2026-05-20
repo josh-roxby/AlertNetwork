@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { isCronAuthorised } from "@/lib/cron-auth";
+import { buildReportSnapshot } from "@/lib/data/report-snapshot";
 
 export const maxDuration = 60;
 
@@ -99,11 +100,10 @@ async function run(request: NextRequest) {
     }
 
     try {
-      // Count accounts the report covers — used in report_history for
-      // a quick "X accounts" summary. For scope=project this is every
-      // account in the project; for category/account scopes it's the
-      // join table size.
-      const scoped = await countScopedAccounts(admin, r.id);
+      // Snapshot the report at send time. `accounts` (the integer
+      // count) stays on the row for fast list rendering; the full
+      // payload backs the historical view page.
+      const payload = await buildReportSnapshot(admin, r.id);
 
       const nowIso = new Date().toISOString();
       const { error: updErr } = await admin
@@ -117,7 +117,8 @@ async function run(request: NextRequest) {
         sent_at: nowIso,
         status: "delivered",
         recipients: 0,
-        accounts: scoped,
+        accounts: payload.totals.account_count,
+        payload,
       });
       if (histErr) throw histErr;
 
@@ -150,44 +151,3 @@ async function run(request: NextRequest) {
   });
 }
 
-async function countScopedAccounts(
-  admin: ReturnType<typeof supabaseAdmin>,
-  reportId: string,
-): Promise<number> {
-  const { data: report, error: rErr } = await admin
-    .from("reports")
-    .select("scope_kind, project_id")
-    .eq("id", reportId)
-    .single();
-  if (rErr || !report) return 0;
-
-  if (report.scope_kind === "project") {
-    const { count } = await admin
-      .from("accounts")
-      .select("*", { count: "exact", head: true })
-      .eq("project_id", report.project_id);
-    return count ?? 0;
-  }
-  if (report.scope_kind === "account") {
-    const { count } = await admin
-      .from("report_accounts")
-      .select("*", { count: "exact", head: true })
-      .eq("report_id", reportId);
-    return count ?? 0;
-  }
-  if (report.scope_kind === "category") {
-    // Sum the account counts of every scoped category.
-    const { data: rc } = await admin
-      .from("report_categories")
-      .select("category_id")
-      .eq("report_id", reportId);
-    if (!rc || rc.length === 0) return 0;
-    const categoryIds = rc.map((r) => r.category_id as string);
-    const { count } = await admin
-      .from("accounts")
-      .select("*", { count: "exact", head: true })
-      .in("category_id", categoryIds);
-    return count ?? 0;
-  }
-  return 0;
-}
