@@ -1,16 +1,22 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { buildReportSnapshot } from "@/lib/data/report-snapshot";
+import { renderReportEmail } from "@/lib/email/report-email";
+import { sendMail } from "@/lib/email/transport";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 // POST /api/reports/[id]/send-test
 //
-// "Send a test version of this report to <email>". SMTP isn't wired
-// yet — when it is (N-4) this route will compose the HTML email and
-// hand it to the configured provider. For now it validates the
-// payload + ownership, logs the attempt, and returns a clear
-// "not-yet-implemented" message so the user knows their click
-// reached the server.
+// Sends a test copy of this report to <email>. Unlike the cron path
+// this does NOT create a `report_history` row — it's purely a "what
+// would the recipient see right now" preview. The snapshot is built
+// on-demand and the email links back to the live /view URL (no
+// historyId) since the snapshot isn't persisted.
+//
+// Owner-gated via the user session (RLS on the read), same as before.
+
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },
@@ -21,7 +27,7 @@ export async function POST(
   try {
     body = (await request.json()) as { email?: string };
   } catch {
-    // fall through — empty body is handled below
+    // empty body handled below
   }
 
   const email = body.email?.trim();
@@ -42,28 +48,60 @@ export async function POST(
 
   const { data: report, error } = await supabase
     .from("reports")
-    .select("id, name")
+    .select("id, name, description")
     .eq("id", reportId)
     .maybeSingle();
   if (error || !report) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  // Log for Vercel function visibility so the user can confirm the
-  // route was reached even though no email leaves the building yet.
-  console.info(
-    `[reports/send-test] would send "${report.name}" to ${email} (requested by ${user.email})`,
-  );
+  const appUrl =
+    process.env.APP_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    new URL(request.url).origin;
 
-  return NextResponse.json(
-    {
-      ok: false,
-      pending: true,
-      message:
-        "Email delivery isn't wired yet. The request reached the server and would dispatch to " +
-        email +
-        " once SMTP is configured.",
-    },
-    { status: 202 },
-  );
+  try {
+    // Build a fresh snapshot for the preview — service role bypasses
+    // RLS the same way the cron path does. Test sends intentionally
+    // don't persist this; the user is testing the layout, not
+    // generating an archived send.
+    const admin = supabaseAdmin();
+    const payload = await buildReportSnapshot(admin, reportId);
+
+    const rendered = renderReportEmail({
+      reportName: report.name as string,
+      reportDescription: (report.description as string | null) ?? null,
+      reportId,
+      historyId: null,
+      snapshot: payload,
+      appUrl,
+    });
+
+    const result = await sendMail({
+      to: email,
+      subject: `[TEST] ${rendered.subject}`,
+      html: rendered.html,
+      text: rendered.text,
+    });
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: result.error ?? "SMTP send failed" },
+        { status: 502 },
+      );
+    }
+
+    console.info(
+      `[reports/send-test] sent "${report.name}" to ${email} ` +
+        `(requested by ${user.email}) messageId=${result.messageId}`,
+    );
+
+    return NextResponse.json({
+      ok: true,
+      sentTo: email,
+      messageId: result.messageId,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Send failed";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
