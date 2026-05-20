@@ -5,7 +5,10 @@ import { ReportView } from "@/components/report-view";
 import { PasswordGate } from "@/components/password-gate";
 import { computeAccountHealth } from "@/lib/data/health";
 import { isoDaysAgo } from "@/lib/time";
-import type { ReportSnapshotV1 } from "@/lib/data/report-snapshot";
+import {
+  windowDaysFor,
+  type ReportSnapshotV1,
+} from "@/lib/data/report-snapshot";
 import type {
   AccountView,
   HealthConfig,
@@ -32,8 +35,6 @@ export default async function ReportViewPage({
   const { id } = await params;
   const { historyId } = await searchParams;
 
-  const thirtyDaysAgo = isoDaysAgo(30);
-
   const admin = supabaseAdmin();
   const { data: report, error } = await admin
     .from("reports")
@@ -43,6 +44,9 @@ export default async function ReportViewPage({
 
   if (error || !report) notFound();
   const r = report as ReportRow;
+
+  const windowDays = windowDaysFor(r.cadence);
+  const windowCutoff = isoDaysAgo(windowDays);
 
   // Gate behind the cookie when password_hash is set.
   if (r.password_hash) {
@@ -94,7 +98,7 @@ export default async function ReportViewPage({
             "id, account_id, platform_post_id, posted_at, url, caption, views, likes, comments, shares, saves, first_seen_at, last_scraped_at, updated_at",
           )
           .in("account_id", accountIds)
-          .gte("posted_at", thirtyDaysAgo)
+          .gte("posted_at", windowCutoff)
       : Promise.resolve({ data: [], error: null }),
     admin
       .from("projects")
@@ -125,6 +129,7 @@ export default async function ReportViewPage({
     health: computeAccountHealth(
       postsByAccount.get(a.id) ?? [],
       healthConfig,
+      windowDays,
     ),
   }));
 
