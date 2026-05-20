@@ -1,5 +1,18 @@
 "use client";
 
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { compactNumber, percent } from "@/lib/format";
 import { paletteBg } from "@/lib/data/palette";
 import {
@@ -7,6 +20,14 @@ import {
   BAND_BG,
   type AccountHealth,
 } from "@/lib/data/health";
+import {
+  CHART_MARGIN,
+  ChartCard,
+  ChartTooltip,
+  X_AXIS,
+  Y_AXIS,
+} from "@/components/charts";
+import type { DailyPoint } from "@/lib/data/posts";
 import type {
   AccountView,
   PostRow,
@@ -40,11 +61,15 @@ export function ReportView({
   enriched,
   postsByAccount,
   historySentAt,
+  dailySeriesData,
+  windowDays,
 }: {
   report: ReportRow;
   enriched: EnrichedAccount[];
   postsByAccount: Map<string, PostRow[]>;
   historySentAt: string | null;
+  dailySeriesData: DailyPoint[];
+  windowDays: number;
 }) {
   const accounts = enriched.map((e) => e.account);
   const accountIds = accounts.map((a) => a.id);
@@ -133,18 +158,11 @@ export function ReportView({
           </Section>
         )}
 
-        {topPosts.length > 0 && (
-          <Section title="Top posts">
-            <ul className="flex flex-col gap-2">
-              {topPosts.map((post) => {
-                const a = accounts.find((x) => x.id === post.account_id);
-                return (
-                  <li key={post.id}>
-                    <PostLine post={post} handle={a?.handle} />
-                  </li>
-                );
-              })}
-            </ul>
+        {dailySeriesData.some(
+          (p) => p.views > 0 || p.posts > 0 || p.engagement > 0,
+        ) && (
+          <Section title="Trends">
+            <TrendsBlock series={dailySeriesData} windowDays={windowDays} />
           </Section>
         )}
 
@@ -201,6 +219,21 @@ export function ReportView({
                 </article>
               ))}
             </div>
+          </Section>
+        )}
+
+        {topPosts.length > 0 && (
+          <Section title="Top posts">
+            <ul className="flex flex-col gap-2">
+              {topPosts.map((post) => {
+                const a = accounts.find((x) => x.id === post.account_id);
+                return (
+                  <li key={post.id}>
+                    <PostLine post={post} handle={a?.handle} />
+                  </li>
+                );
+              })}
+            </ul>
           </Section>
         )}
 
@@ -491,6 +524,146 @@ function collectTopPosts(
     if (ps) for (const p of ps) all.push(p);
   }
   return all.sort((a, b) => b.views - a.views).slice(0, limit);
+}
+
+// Three stacked chart cards mirroring the in-app /reports/[id] page
+// so anyone with the share URL (or printing the page) sees the same
+// trend surface. Reads the daily series straight off the snapshot
+// when historyId is set, or computed live in the parent otherwise.
+function TrendsBlock({
+  series,
+  windowDays,
+}: {
+  series: DailyPoint[];
+  windowDays: number;
+}) {
+  const totalViews = series.reduce((s, p) => s + p.views, 0);
+  const totalPosts = series.reduce((s, p) => s + p.posts, 0);
+  // Re-derive ER from totals so a single light-traffic day doesn't
+  // skew a per-day average upward.
+  const totalEng = series.reduce((s, p) => s + p.likes, 0); // likes is a proxy when raw posts unavailable
+  // The series only carries likes (not the full engagement breakdown),
+  // so fall back to the daily-weighted engagement metric the series
+  // already computed if likes is zero.
+  const fallbackEngagement =
+    series.length > 0
+      ? series.reduce((s, p) => s + p.engagement * p.views, 0) /
+        Math.max(totalViews, 1)
+      : 0;
+  const avgEngagement =
+    totalViews > 0 ? totalEng / totalViews : fallbackEngagement;
+  const rangeLabel = `${windowDays}d`;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <ChartCard
+        label="Daily views"
+        value={compactNumber(totalViews)}
+        valueLabel={`total · ${rangeLabel}`}
+        chart={
+          <ResponsiveContainer width="100%" height={150}>
+            <AreaChart data={series} margin={CHART_MARGIN}>
+              <defs>
+                <linearGradient
+                  id="report-view-views-fill"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop
+                    offset="0%"
+                    stopColor="var(--accent)"
+                    stopOpacity={0.32}
+                  />
+                  <stop
+                    offset="100%"
+                    stopColor="var(--accent)"
+                    stopOpacity={0}
+                  />
+                </linearGradient>
+              </defs>
+              <CartesianGrid
+                stroke="var(--line)"
+                strokeDasharray="3 3"
+                vertical={false}
+              />
+              <XAxis {...X_AXIS} />
+              <YAxis
+                {...Y_AXIS}
+                width={36}
+                tickFormatter={(v: number) => compactNumber(v)}
+              />
+              <Tooltip content={<ChartTooltip formatter={compactNumber} />} />
+              <Area
+                type="monotone"
+                dataKey="views"
+                stroke="var(--accent)"
+                strokeWidth={2}
+                fill="url(#report-view-views-fill)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        }
+      />
+
+      <ChartCard
+        label="Engagement rate"
+        value={avgEngagement > 0 ? percent(avgEngagement, 2) : "—"}
+        valueLabel={`weighted · ${rangeLabel}`}
+        chart={
+          <ResponsiveContainer width="100%" height={150}>
+            <LineChart data={series} margin={CHART_MARGIN}>
+              <CartesianGrid
+                stroke="var(--line)"
+                strokeDasharray="3 3"
+                vertical={false}
+              />
+              <XAxis {...X_AXIS} />
+              <YAxis
+                {...Y_AXIS}
+                width={36}
+                tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
+              />
+              <Tooltip
+                content={
+                  <ChartTooltip formatter={(n: number) => percent(n, 1)} />
+                }
+              />
+              <Line
+                type="monotone"
+                dataKey="engagement"
+                stroke="var(--good)"
+                strokeWidth={2}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        }
+      />
+
+      <ChartCard
+        label="Posts per day"
+        value={totalPosts.toString()}
+        valueLabel={`total · ${rangeLabel}`}
+        chart={
+          <ResponsiveContainer width="100%" height={130}>
+            <BarChart data={series} margin={CHART_MARGIN}>
+              <CartesianGrid
+                stroke="var(--line)"
+                strokeDasharray="3 3"
+                vertical={false}
+              />
+              <XAxis {...X_AXIS} />
+              <YAxis {...Y_AXIS} width={28} allowDecimals={false} />
+              <Tooltip content={<ChartTooltip />} />
+              <Bar dataKey="posts" fill="var(--info)" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        }
+      />
+    </div>
+  );
 }
 
 function PrintGlyph() {

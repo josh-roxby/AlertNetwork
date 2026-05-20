@@ -482,11 +482,6 @@ function RecentTab({
         </p>
       </section>
 
-      <ReportTrends
-        postsInWindow={allPosts}
-        windowDays={windowDays}
-      />
-
       <section className="mb-5">
         <h3 className="t-micro mb-2 px-1 text-ink-3">Top 3 accounts</h3>
         <ul className="flex flex-col gap-2">
@@ -503,7 +498,55 @@ function RecentTab({
         </ul>
       </section>
 
+      <ReportTrends
+        postsInWindow={allPosts}
+        windowDays={windowDays}
+      />
+
       <section className="mb-5">
+        <h3 className="t-micro mb-2 px-1 text-ink-3">All by category</h3>
+        {byCategory.length === 0 ? (
+          <div className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-6 text-center t-small text-ink-3">
+            No accounts to group.
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-4">
+            {byCategory.map((group) => (
+              <li key={group.id}>
+                <div className="mb-2 flex items-center gap-2 px-1">
+                  <span
+                    aria-hidden
+                    className={`inline-block h-2 w-2 rounded-full ${paletteBg(group.paletteId)}`}
+                  />
+                  <span className="t-small font-medium text-ink">
+                    {group.label}
+                  </span>
+                  <span
+                    className="t-meta text-ink-3"
+                    style={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
+                  >
+                    {group.accounts.length} account
+                    {group.accounts.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <ul className="flex flex-col gap-1.5">
+                  {group.accounts.map(({ account, health, lastPostedAt }) => (
+                    <li key={account.id}>
+                      <AccountStatsBlock
+                        account={account}
+                        health={health}
+                        lastPostedAt={lastPostedAt}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
         <h3 className="t-micro mb-2 px-1 text-ink-3">Top 5 posts</h3>
         {topPosts.length === 0 ? (
           <div className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-8 text-center">
@@ -562,49 +605,6 @@ function RecentTab({
                 </li>
               );
             })}
-          </ul>
-        )}
-      </section>
-
-      <section>
-        <h3 className="t-micro mb-2 px-1 text-ink-3">All by category</h3>
-        {byCategory.length === 0 ? (
-          <div className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-6 text-center t-small text-ink-3">
-            No accounts to group.
-          </div>
-        ) : (
-          <ul className="flex flex-col gap-4">
-            {byCategory.map((group) => (
-              <li key={group.id}>
-                <div className="mb-2 flex items-center gap-2 px-1">
-                  <span
-                    aria-hidden
-                    className={`inline-block h-2 w-2 rounded-full ${paletteBg(group.paletteId)}`}
-                  />
-                  <span className="t-small font-medium text-ink">
-                    {group.label}
-                  </span>
-                  <span
-                    className="t-meta text-ink-3"
-                    style={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
-                  >
-                    {group.accounts.length} account
-                    {group.accounts.length === 1 ? "" : "s"}
-                  </span>
-                </div>
-                <ul className="flex flex-col gap-1.5">
-                  {group.accounts.map(({ account, health, lastPostedAt }) => (
-                    <li key={account.id}>
-                      <AccountStatsBlock
-                        account={account}
-                        health={health}
-                        lastPostedAt={lastPostedAt}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
           </ul>
         )}
       </section>

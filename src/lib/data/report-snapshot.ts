@@ -24,6 +24,7 @@ import {
   type AccountHealth,
   type HealthBand,
 } from "@/lib/data/health";
+import { dailySeries, type DailyPoint } from "@/lib/data/posts";
 import type { HealthConfig, PostRow } from "@/lib/data/types";
 
 export type ReportCadence = "weekly" | "monthly";
@@ -59,6 +60,12 @@ export type ReportSnapshotV1 = {
   prior_period_totals?: SnapshotTotals | null;
   accounts: SnapshotAccount[];
   top_posts: SnapshotPost[];
+  // Per-day aggregate across every scoped account in the current
+  // window — zero-filled. Populated from `dailySeries(currentPosts,
+  // window_days)` at snapshot time so the shared/printable view can
+  // draw the trend charts without re-fetching posts. Optional for
+  // backward compatibility with pre-PR-47 payloads.
+  daily_series?: DailyPoint[];
 };
 
 export type SnapshotTotals = {
@@ -274,6 +281,7 @@ export async function buildReportSnapshot(
     prior_period_totals: prior,
     accounts: accountsSnap,
     top_posts: topPostsSnap,
+    daily_series: dailySeries(currentPosts, windowDays),
   };
 }
 
