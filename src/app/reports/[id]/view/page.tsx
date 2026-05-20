@@ -5,6 +5,7 @@ import { ReportView } from "@/components/report-view";
 import { PasswordGate } from "@/components/password-gate";
 import { computeAccountHealth } from "@/lib/data/health";
 import { isoDaysAgo } from "@/lib/time";
+import type { ReportSnapshotV1 } from "@/lib/data/report-snapshot";
 import type {
   AccountView,
   HealthConfig,
@@ -49,6 +50,30 @@ export default async function ReportViewPage({
     const cookie = cookieStore.get(`anw-report-unlock-${r.id}`);
     if (!cookie) {
       return <PasswordGate reportId={r.id} reportName={r.name} />;
+    }
+  }
+
+  // If the user opened a specific history row AND that row has a
+  // frozen payload (i.e. it was sent after migration 0003), render
+  // exactly the numbers stored at send time. Legacy history rows
+  // without payload fall through to the live-data path below.
+  if (historyId) {
+    const { data: h } = await admin
+      .from("report_history")
+      .select("sent_at, payload")
+      .eq("id", historyId)
+      .eq("report_id", r.id)
+      .maybeSingle();
+    const payload = (h?.payload as ReportSnapshotV1 | null) ?? null;
+    if (h && payload && payload.version === 1) {
+      return (
+        <ReportView
+          report={r}
+          enriched={enrichedFromSnapshot(payload)}
+          postsByAccount={postsByAccountFromSnapshot(payload)}
+          historySentAt={(h.sent_at as string) ?? null}
+        />
+      );
     }
   }
 
@@ -103,9 +128,9 @@ export default async function ReportViewPage({
     ),
   }));
 
-  // Optional snapshot context if the user opened a specific history
-  // row. We don't have stored snapshots yet so the date is the only
-  // historical thing we surface.
+  // Legacy fall-through: history rows from before 0003_report_history_payload
+  // don't have a payload, so render live data while still surfacing the
+  // history date in the document header.
   let historySentAt: string | null = null;
   if (historyId) {
     const { data: h } = await admin
@@ -125,6 +150,70 @@ export default async function ReportViewPage({
       historySentAt={historySentAt}
     />
   );
+}
+
+// Adapt a stored ReportSnapshotV1 back into the EnrichedAccount[]
+// shape the ReportView component expects. The renderer is unchanged —
+// it just gets fed reconstructed objects instead of live ones.
+function enrichedFromSnapshot(s: ReportSnapshotV1) {
+  return s.accounts.map((a) => {
+    const account: AccountView = {
+      id: a.id,
+      project_id: "",
+      handle: a.handle,
+      display_name: a.display_name,
+      platform: "tiktok",
+      url: a.url,
+      category_id: a.category_id,
+      followers: null,
+      last_logged_at: null,
+      last_scraped_at: null,
+      created_at: s.generated_at,
+      updated_at: s.generated_at,
+      category: a.category_id
+        ? {
+            id: a.category_id,
+            project_id: "",
+            label: a.category_label ?? "",
+            palette_id: a.category_palette_id ?? "",
+            created_at: s.generated_at,
+          }
+        : null,
+      tagLabels: [],
+    };
+    return { account, health: a.health };
+  });
+}
+
+// Same — rebuild the post buckets from snapshot.top_posts. We only
+// snapshot the top 5, so the view's "Top posts" section is faithful
+// while the per-account drilldown drops back to whatever's stored.
+function postsByAccountFromSnapshot(
+  s: ReportSnapshotV1,
+): Map<string, PostRow[]> {
+  const map = new Map<string, PostRow[]>();
+  for (const p of s.top_posts) {
+    const row: PostRow = {
+      id: p.id,
+      account_id: p.account_id,
+      platform_post_id: p.id,
+      posted_at: p.posted_at,
+      url: p.url,
+      caption: p.caption,
+      views: p.views,
+      likes: p.likes,
+      comments: p.comments,
+      shares: p.shares,
+      saves: 0,
+      first_seen_at: p.posted_at,
+      last_scraped_at: s.generated_at,
+      updated_at: s.generated_at,
+    };
+    const arr = map.get(p.account_id);
+    if (arr) arr.push(row);
+    else map.set(p.account_id, [row]);
+  }
+  return map;
 }
 
 async function resolveScope(
