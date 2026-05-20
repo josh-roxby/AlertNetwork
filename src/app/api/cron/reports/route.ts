@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { isCronAuthorised } from "@/lib/cron-auth";
 import { buildReportSnapshot } from "@/lib/data/report-snapshot";
+import { renderReportEmail } from "@/lib/email/report-email";
+import { sendMail } from "@/lib/email/transport";
 
 export const maxDuration = 60;
 
@@ -50,11 +52,19 @@ async function run(request: NextRequest) {
   const admin = supabaseAdmin();
   const { data: reports, error } = await admin
     .from("reports")
-    .select("id, name, cadence, status, project_id")
+    .select("id, name, description, cadence, status, project_id")
     .eq("status", "active");
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // App URL backs the "View report online" CTA. Use the explicit env
+  // value when set (production), otherwise derive from the request
+  // origin (preview deploys + local dev).
+  const appUrl =
+    process.env.APP_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    new URL(request.url).origin;
 
   type Result = {
     reportId: string;
@@ -63,6 +73,8 @@ async function run(request: NextRequest) {
     sent: boolean;
     skipped?: string;
     error?: string;
+    recipients?: number;
+    failedRecipients?: number;
   };
 
   const results: Result[] = [];
@@ -102,7 +114,7 @@ async function run(request: NextRequest) {
     try {
       // Snapshot the report at send time. `accounts` (the integer
       // count) stays on the row for fast list rendering; the full
-      // payload backs the historical view page.
+      // payload backs the historical view page AND the email body.
       const payload = await buildReportSnapshot(admin, r.id);
 
       const nowIso = new Date().toISOString();
@@ -112,21 +124,85 @@ async function run(request: NextRequest) {
         .eq("id", r.id);
       if (updErr) throw updErr;
 
-      const { error: histErr } = await admin.from("report_history").insert({
-        report_id: r.id,
-        sent_at: nowIso,
-        status: "delivered",
-        recipients: 0,
-        accounts: payload.totals.account_count,
-        payload,
-      });
+      // Insert the history row first WITH the snapshot. We capture
+      // the row id so the email link can target ?historyId=<id> and
+      // open the exact frozen view the recipient was shown. The
+      // recipients count is updated below after the actual sends.
+      const { data: histRow, error: histErr } = await admin
+        .from("report_history")
+        .insert({
+          report_id: r.id,
+          sent_at: nowIso,
+          status: "delivered",
+          recipients: 0,
+          accounts: payload.totals.account_count,
+          payload,
+        })
+        .select("id")
+        .single();
       if (histErr) throw histErr;
+      const historyId = histRow.id as string;
+
+      // Pull recipients. report_recipients is project_id-agnostic —
+      // RLS would gate it for the browser, but here we're on the
+      // service role so the join key is just report_id.
+      const { data: recipientRows, error: rcptErr } = await admin
+        .from("report_recipients")
+        .select("email")
+        .eq("report_id", r.id);
+      if (rcptErr) throw rcptErr;
+      const recipients = (recipientRows ?? []).map(
+        (row) => row.email as string,
+      );
+
+      let delivered = 0;
+      let failed = 0;
+      if (recipients.length > 0) {
+        const rendered = renderReportEmail({
+          reportName: r.name as string,
+          reportDescription: (r.description as string | null) ?? null,
+          reportId: r.id,
+          historyId,
+          snapshot: payload,
+          appUrl,
+        });
+
+        for (const to of recipients) {
+          const res = await sendMail({
+            to,
+            subject: rendered.subject,
+            html: rendered.html,
+            text: rendered.text,
+          });
+          if (res.ok) {
+            delivered += 1;
+          } else {
+            failed += 1;
+            console.error(
+              `[cron/reports] send failed report=${r.id} to=${to} err=${res.error}`,
+            );
+          }
+        }
+
+        // Reflect the delivery outcome on the history row. `failed`
+        // only applies when there were recipients but none got
+        // through — otherwise we treat the report as delivered with
+        // whatever count actually went out.
+        const status =
+          delivered === 0 ? "failed" : failed > 0 ? "partial" : "delivered";
+        await admin
+          .from("report_history")
+          .update({ recipients: delivered, status })
+          .eq("id", historyId);
+      }
 
       results.push({
         reportId: r.id,
         name: r.name as string,
         cadence,
         sent: true,
+        recipients: delivered,
+        failedRecipients: failed,
       });
     } catch (err) {
       results.push({
