@@ -31,7 +31,7 @@ export type AccountHealth = {
   band: HealthBand;
 };
 
-const WINDOW_DAYS = 30;
+const DEFAULT_WINDOW_DAYS = 30;
 
 // Baked-in defaults used when a project doesn't have its own config
 // set. The Settings UI seeds new configs from these too.
@@ -79,10 +79,11 @@ export function resolveHealthConfig(
 export function computeAccountHealth(
   posts: PostRow[],
   config?: HealthConfig | null,
+  windowDays: number = DEFAULT_WINDOW_DAYS,
 ): AccountHealth {
   const cfg = resolveHealthConfig(config);
   const now = Date.now();
-  const windowMs = WINDOW_DAYS * 24 * 3600 * 1000;
+  const windowMs = windowDays * 24 * 3600 * 1000;
   const recent = posts.filter(
     (p) => now - new Date(p.posted_at).getTime() <= windowMs,
   );
@@ -109,7 +110,7 @@ export function computeAccountHealth(
     0,
   );
   const engagementRate = totalViews > 0 ? totalEngagements / totalViews : 0;
-  const postsPerWeek = (recent.length / WINDOW_DAYS) * 7;
+  const postsPerWeek = (recent.length / windowDays) * 7;
 
   // Per-axis scoring uses the config's targets.
   const engScore = clamp(
