@@ -15,12 +15,20 @@ export default function LoginPage() {
 function LoginForm() {
   const sp = useSearchParams();
   const next = sp.get("next") ?? "/dashboard";
+  const callbackError = sp.get("error");
 
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">(
     "idle",
   );
   const [errorMessage, setErrorMessage] = useState("");
+
+  // Translate the few callback-side errors we surface into friendly
+  // copy. Everything else is shown verbatim from Supabase.
+  const calloutMessage =
+    callbackError === "invite-only"
+      ? "Sign in is invite-only. Ask the project owner to add your email under Settings → Team & access."
+      : callbackError;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -109,6 +117,15 @@ function LoginForm() {
         {status === "error" && errorMessage && (
           <p className="mt-3 t-small text-bad" role="alert">
             {errorMessage}
+          </p>
+        )}
+
+        {status !== "error" && calloutMessage && (
+          <p
+            className="mt-3 rounded-sm border border-accent-line bg-accent-soft px-2.5 py-2 t-small text-accent"
+            role="status"
+          >
+            {calloutMessage}
           </p>
         )}
 

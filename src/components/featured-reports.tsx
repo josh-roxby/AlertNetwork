@@ -23,7 +23,7 @@ const STATUS_DOT: Record<string, string> = {
 //   - reports exist but none flagged is_featured → prompt to favourite
 //   - featured reports exist → render them as cards
 export function FeaturedReports({ max = 3 }: { max?: number }) {
-  const { reports, reportsLoading, openSheet } = useShell();
+  const { reports, reportsLoading, openSheet, isOwner } = useShell();
 
   if (reportsLoading) return null;
 
@@ -34,16 +34,20 @@ export function FeaturedReports({ max = 3 }: { max?: number }) {
         <div className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-5 text-center">
           <p className="t-body text-ink-2">No reports yet.</p>
           <p className="mx-auto mt-1 max-w-[38ch] t-small text-ink-3">
-            Create one to schedule a weekly or monthly summary.
+            {isOwner
+              ? "Create one to schedule a weekly or monthly summary."
+              : "The project owner hasn't created any yet."}
           </p>
-          <button
-            type="button"
-            onClick={() => openSheet({ kind: "newReport" })}
-            className="tap-btn mt-3 inline-flex items-center gap-2 rounded-sm bg-accent px-3 py-1.5 t-small font-semibold text-[#0A0A0A] hover:bg-accent-dim"
-          >
-            <IconPlus stroke="#0A0A0A" />
-            New report
-          </button>
+          {isOwner && (
+            <button
+              type="button"
+              onClick={() => openSheet({ kind: "newReport" })}
+              className="tap-btn mt-3 inline-flex items-center gap-2 rounded-sm bg-accent px-3 py-1.5 t-small font-semibold text-[#0A0A0A] hover:bg-accent-dim"
+            >
+              <IconPlus stroke="#0A0A0A" />
+              New report
+            </button>
+          )}
         </div>
       </section>
     );

@@ -43,7 +43,7 @@ const RANGE_DAYS: Record<ChartRange, number> = { "7d": 7, "30d": 30, "90d": 90 }
 type DetailTab = "charts" | "posts";
 
 export function AccountDetail({ accountId }: { accountId: string }) {
-  const { refreshAccounts, refreshPosts, openSheet } = useShell();
+  const { refreshAccounts, refreshPosts, openSheet, isOwner } = useShell();
   const project = useActiveProject();
   const [account, setAccount] = useState<AccountView | null>(null);
   const [posts, setPosts] = useState<PostRow[]>([]);
@@ -165,15 +165,17 @@ export function AccountDetail({ accountId }: { accountId: string }) {
             {account.handle}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() =>
-            openSheet({ kind: "editAccount", accountId: account.id })
-          }
-          className="tap-btn inline-flex shrink-0 items-center gap-1 rounded-full border border-line-2 bg-surface px-3 py-1.5 t-small font-semibold text-ink-2 hover:bg-surface-2 hover:text-ink"
-        >
-          Edit
-        </button>
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() =>
+              openSheet({ kind: "editAccount", accountId: account.id })
+            }
+            className="tap-btn inline-flex shrink-0 items-center gap-1 rounded-full border border-line-2 bg-surface px-3 py-1.5 t-small font-semibold text-ink-2 hover:bg-surface-2 hover:text-ink"
+          >
+            Edit
+          </button>
+        )}
       </section>
 
       <section className="mb-4 flex flex-wrap items-center gap-1.5">
@@ -245,14 +247,16 @@ export function AccountDetail({ accountId }: { accountId: string }) {
           View on platform
           <span aria-hidden>↗</span>
         </a>
-        <button
-          type="button"
-          onClick={rescan}
-          disabled={scrapeState.kind === "scraping"}
-          className="tap-btn inline-flex items-center justify-center gap-2 rounded-sm border border-line-2 bg-surface-2 px-4 py-3 t-body font-medium text-ink hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
-        >
-          {scrapeState.kind === "scraping" ? "Scraping…" : "Rescan now"}
-        </button>
+        {isOwner && (
+          <button
+            type="button"
+            onClick={rescan}
+            disabled={scrapeState.kind === "scraping"}
+            className="tap-btn inline-flex items-center justify-center gap-2 rounded-sm border border-line-2 bg-surface-2 px-4 py-3 t-body font-medium text-ink hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
+          >
+            {scrapeState.kind === "scraping" ? "Scraping…" : "Rescan now"}
+          </button>
+        )}
       </section>
 
       {scrapeState.kind === "done" && (

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sheet } from "@/components/sheet";
-import { useShell } from "@/components/shell-context";
+import { useShell, useActiveProject } from "@/components/shell-context";
 import {
   createAccount,
   parseTikTokHandle,
@@ -329,6 +329,16 @@ export function AddAccountSheet({
   );
 }
 
+type MemberRowFromApi = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role: "viewer";
+  invited_email: string;
+  invited_at: string;
+  display_email: string;
+};
+
 export function TeamSheet({
   open,
   onClose,
@@ -336,28 +346,265 @@ export function TeamSheet({
   open: boolean;
   onClose: () => void;
 }) {
+  const { activeProjectId, isOwner } = useShell();
+  const project = useActiveProject();
+
+  const [members, setMembers] = useState<MemberRowFromApi[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // Refresh the list when the sheet opens or the project changes.
+  // Errors get surfaced inline rather than thrown — the rest of the
+  // sheet stays usable even if the network is flaky.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!open || !activeProjectId) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetch(`/api/projects/${activeProjectId}/members`)
+      .then(async (res) => {
+        const body = (await res.json().catch(() => ({}))) as {
+          members?: MemberRowFromApi[];
+          error?: string;
+        };
+        if (cancelled) return;
+        if (!res.ok) {
+          setError(body.error ?? "Failed to load members.");
+          setMembers([]);
+        } else {
+          setMembers(body.members ?? []);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, activeProjectId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault();
+    if (!activeProjectId) return;
+    const trimmed = email.trim();
+    if (!trimmed) return;
+    setBusy("invite");
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await fetch(`/api/projects/${activeProjectId}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        outcome?: "invited" | "existing";
+        member?: MemberRowFromApi;
+        error?: string;
+      };
+      if (!res.ok || !body.ok || !body.member) {
+        setError(body.error ?? "Failed to invite.");
+        return;
+      }
+      setNotice(
+        body.outcome === "invited"
+          ? `Magic-link sent to ${trimmed}. They'll have view access once they sign in.`
+          : `${trimmed} added as a viewer. They already had an account — share the dashboard URL with them.`,
+      );
+      setEmail("");
+      // Optimistic refresh: append the new row and re-fetch quietly
+      // so the display_email backfill is consistent.
+      setMembers((prev) => [...prev, body.member as MemberRowFromApi]);
+      fetch(`/api/projects/${activeProjectId}/members`)
+        .then(async (r) => {
+          const b = (await r.json().catch(() => ({}))) as {
+            members?: MemberRowFromApi[];
+          };
+          if (b.members) setMembers(b.members);
+        })
+        .catch(() => {});
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleRemove(memberId: string, displayEmail: string) {
+    if (!activeProjectId) return;
+    if (
+      !window.confirm(`Remove ${displayEmail} from ${project?.name ?? "this project"}?`)
+    ) {
+      return;
+    }
+    setBusy(memberId);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await fetch(
+        `/api/projects/${activeProjectId}/members/${memberId}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(body.error ?? "Failed to remove member.");
+        return;
+      }
+      setMembers((prev) => prev.filter((m) => m.id !== memberId));
+      setNotice(`${displayEmail} removed.`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <Sheet
       open={open}
       onClose={onClose}
       title="Team & access"
-      description="Members can edit. Viewers see scheduled reports only."
+      description={
+        isOwner
+          ? "Invite viewers to see the dashboard, accounts and report views. They can't edit anything."
+          : "You have view-only access to this project."
+      }
       footer={
-        <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="tap-btn rounded-sm border border-line-2 bg-surface px-4 py-2.5 t-body font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
-          >
-            Close
-          </button>
-        </>
+        <button
+          type="button"
+          onClick={onClose}
+          className="tap-btn rounded-sm border border-line-2 bg-surface px-4 py-2.5 t-body font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
+        >
+          Close
+        </button>
       }
     >
-      <p className="rounded-sm border border-accent-line bg-accent-soft px-3 py-2 t-small text-accent">
-        Single-owner workspaces in v1. Team membership and invites land in a
-        later round.
-      </p>
+      {isOwner && (
+        <form onSubmit={handleInvite} className="mb-4 flex flex-col gap-2">
+          <label className="t-micro text-ink-3" htmlFor="member-email">
+            Invite by email
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="member-email"
+              type="email"
+              autoComplete="off"
+              inputMode="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="viewer@example.com"
+              disabled={busy === "invite"}
+              className="h-10 flex-1 rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-60"
+            />
+            <button
+              type="submit"
+              disabled={busy === "invite" || !email.trim()}
+              className="tap-btn shrink-0 rounded-sm bg-accent px-4 t-small font-semibold text-[#0A0A0A] hover:bg-accent-dim disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {busy === "invite" ? "Sending…" : "Invite"}
+            </button>
+          </div>
+          <p className="t-meta text-ink-4" style={{ fontSize: 10 }}>
+            They&apos;ll get a magic-link sign-in email. Viewers can see the
+            dashboard, accounts and report views — they can&apos;t add accounts
+            or change settings.
+          </p>
+        </form>
+      )}
+
+      {error && (
+        <p
+          className="mb-3 rounded-sm border border-bad bg-bad-soft px-2.5 py-2 t-small text-bad"
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
+      {notice && !error && (
+        <p
+          className="mb-3 rounded-sm border border-accent-line bg-accent-soft px-2.5 py-2 t-small text-accent"
+          role="status"
+        >
+          {notice}
+        </p>
+      )}
+
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="t-micro text-ink-3">
+          Members{members.length > 0 ? ` · ${members.length + 1}` : ""}
+        </h3>
+        {loading && (
+          <span className="t-meta text-ink-4" style={{ fontSize: 10 }}>
+            Loading…
+          </span>
+        )}
+      </div>
+
+      <ul className="flex flex-col gap-1.5">
+        <li className="flex items-center justify-between gap-3 rounded-sm border border-line bg-surface px-3 py-2.5">
+          <div className="min-w-0">
+            <div className="truncate t-body text-ink">
+              {project?.name ? `${project.name} · owner` : "Owner"}
+            </div>
+            <div
+              className="t-meta text-ink-3"
+              style={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
+            >
+              Full access
+            </div>
+          </div>
+          <span
+            className="inline-flex shrink-0 items-center rounded-full bg-good-soft px-2 py-0.5 text-good"
+            style={{ fontSize: 10, fontWeight: 700 }}
+          >
+            Owner
+          </span>
+        </li>
+        {members.map((m) => (
+          <li
+            key={m.id}
+            className="flex items-center justify-between gap-3 rounded-sm border border-line bg-surface px-3 py-2.5"
+          >
+            <div className="min-w-0">
+              <div className="truncate t-body text-ink">{m.display_email}</div>
+              <div
+                className="t-meta text-ink-3"
+                style={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
+              >
+                Invited {new Date(m.invited_at).toLocaleDateString("en-GB")}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span
+                className="inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 text-ink-2"
+                style={{ fontSize: 10, fontWeight: 700 }}
+              >
+                Viewer
+              </span>
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => handleRemove(m.id, m.display_email)}
+                  disabled={busy === m.id}
+                  className="tap-btn rounded-sm border border-line-2 bg-surface px-2.5 py-1 t-small text-ink-3 hover:border-bad hover:text-bad disabled:opacity-60"
+                >
+                  {busy === m.id ? "…" : "Remove"}
+                </button>
+              )}
+            </div>
+          </li>
+        ))}
+        {!loading && members.length === 0 && (
+          <li
+            className="rounded-sm border border-dashed border-line-2 bg-surface px-3 py-4 text-center t-small text-ink-3"
+          >
+            No viewers yet.{isOwner ? " Invite one above." : ""}
+          </li>
+        )}
+      </ul>
     </Sheet>
   );
 }

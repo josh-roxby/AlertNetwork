@@ -15,6 +15,7 @@ import { listAccounts } from "@/lib/data/accounts";
 import { listTags } from "@/lib/data/tags";
 import { listReports } from "@/lib/data/reports";
 import { listPostsForProject } from "@/lib/data/posts";
+import { roleForProject, type ProjectRoleForUser } from "@/lib/data/members";
 import type {
   AccountView,
   CategoryRow,
@@ -55,6 +56,12 @@ type ShellContextValue = {
   posts: PostRow[];
   postsLoading: boolean;
   postsByAccount: Map<string, PostRow[]>;
+  // Caller's role on the active project. Used everywhere we render
+  // create / edit affordances — null means we're still resolving or
+  // not signed in; "viewer" means the UI should hide mutating
+  // controls; "owner" gets everything.
+  currentRole: ProjectRoleForUser;
+  isOwner: boolean;
   openDrawer: () => void;
   closeDrawer: () => void;
   openSheet: (s: SheetState) => void;
@@ -88,6 +95,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(
     null,
   );
+  const [currentRole, setCurrentRole] = useState<ProjectRoleForUser>(null);
 
   const loadProjects = useCallback(async () => {
     try {
@@ -301,6 +309,24 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
     loadReports,
     loadPosts,
   ]);
+
+  // Resolve the caller's role on the active project. Re-runs on
+  // project switch + auth-state change so a fresh sign-in or invite
+  // acceptance immediately unlocks the UI affordances we gate on it.
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeProjectId) {
+      setCurrentRole(null);
+      return;
+    }
+    (async () => {
+      const role = await roleForProject(activeProjectId);
+      if (!cancelled) setCurrentRole(role);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProjectId]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Bucket posts by account once per render so consumers don't have
@@ -321,6 +347,8 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
   const openSheet = useCallback((s: SheetState) => setSheet(s), []);
   const closeSheet = useCallback(() => setSheet(null), []);
 
+  const isOwner = currentRole === "owner";
+
   const value = useMemo<ShellContextValue>(
     () => ({
       drawerOpen,
@@ -339,6 +367,8 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       posts,
       postsLoading,
       postsByAccount,
+      currentRole,
+      isOwner,
       openDrawer,
       closeDrawer,
       openSheet,
@@ -368,6 +398,8 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       posts,
       postsLoading,
       postsByAccount,
+      currentRole,
+      isOwner,
       openDrawer,
       closeDrawer,
       openSheet,

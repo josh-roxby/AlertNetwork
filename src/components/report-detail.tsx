@@ -94,6 +94,7 @@ export function ReportDetail({ reportId }: { reportId: string }) {
     categories,
     openSheet,
     refreshReports,
+    isOwner,
   } = useShell();
   const activeProject = useActiveProject();
   const healthConfig: HealthConfig | null = activeProject?.health_config ?? null;
@@ -298,15 +299,17 @@ export function ReportDetail({ reportId }: { reportId: string }) {
           <IconEye stroke="#0A0A0A" />
           Open view
         </Link>
-        <button
-          type="button"
-          onClick={() =>
-            openSheet({ kind: "manageReport", reportId: report.id })
-          }
-          className="tap-btn inline-flex items-center justify-center gap-2 rounded-sm border border-line-2 bg-surface-2 px-4 py-3 t-body font-medium text-ink hover:bg-surface-3"
-        >
-          Manage
-        </button>
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() =>
+              openSheet({ kind: "manageReport", reportId: report.id })
+            }
+            className="tap-btn inline-flex items-center justify-center gap-2 rounded-sm border border-line-2 bg-surface-2 px-4 py-3 t-body font-medium text-ink hover:bg-surface-3"
+          >
+            Manage
+          </button>
+        )}
       </section>
 
       {report.status === "draft" && (

@@ -4,7 +4,11 @@ import { useShell } from "@/components/shell-context";
 import { IconPlus } from "@/components/icons";
 
 export function AddAccountTile() {
-  const { openSheet } = useShell();
+  const { openSheet, isOwner } = useShell();
+
+  // Viewers don't see the add-account affordance — the rest of the
+  // list still renders, they just can't create.
+  if (!isOwner) return null;
 
   return (
     <button
