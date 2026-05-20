@@ -13,7 +13,8 @@ import {
   BAND_LABEL,
   computeAccountHealth,
 } from "@/lib/data/health";
-import { compactNumber, relativeDate } from "@/lib/format";
+import { compactNumber, percent, relativeDate } from "@/lib/format";
+import { StatsGrid } from "@/components/stats-grid";
 import { paletteBg } from "@/lib/data/palette";
 import { TabNav } from "@/components/tab-nav";
 import { useShell, useActiveProject } from "@/components/shell-context";
@@ -248,9 +249,9 @@ export function ReportDetail({ reportId }: { reportId: string }) {
         </div>
       </section>
 
-      <section className="mb-5 grid grid-cols-2 gap-2">
-        <StatCell label="Cadence" value={CADENCE_LABEL[report.cadence]} />
-        <StatCell
+      <section className="mb-5 flex flex-col divide-y divide-line rounded-md border border-line bg-surface">
+        <StatRow label="Cadence" value={CADENCE_LABEL[report.cadence]} />
+        <StatRow
           label="Scope"
           value={
             scopedIds
@@ -258,8 +259,8 @@ export function ReportDetail({ reportId }: { reportId: string }) {
               : SCOPE_LABEL[report.scope_kind]
           }
         />
-        <StatCell label="Schedule" value={report.schedule ?? "—"} />
-        <StatCell
+        <StatRow label="Schedule" value={report.schedule ?? "—"} />
+        <StatRow
           label="Last sent"
           value={
             report.last_sent_at ? relativeDate(report.last_sent_at) : "Not sent"
@@ -408,34 +409,46 @@ function RecentTab({
   // fall into a synthetic bucket so they're still visible.
   const byCategory = groupByCategory(withHealth, categories);
 
+  // Aggregate metrics across every scoped account for the 30-day
+  // window — same window computeAccountHealth uses internally.
+  const totalViews = withHealth.reduce((s, r) => s + r.health.totalViews, 0);
+  const totalEngagements = withHealth.reduce(
+    (s, r) => s + r.health.totalEngagements,
+    0,
+  );
+  const totalPosts = withHealth.reduce((s, r) => s + r.health.postCount, 0);
+  const engagementRate = totalViews > 0 ? totalEngagements / totalViews : 0;
+
   return (
     <>
-      <section className="mb-5 rounded-md border border-line bg-surface px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="t-micro text-ink-3">Average health</div>
-            <div
-              data-numeric
-              className="mt-1 text-ink"
-              style={{
-                fontFamily: "var(--font-unbounded)",
-                fontWeight: 800,
-                fontSize: 28,
-              }}
-            >
-              {covered > 0 ? avgHealth : "—"}
-            </div>
-          </div>
-          {covered > 0 && (
-            <span
-              className={`inline-flex items-center rounded-full px-2.5 py-1 ${BAND_BG[avgBand]}`}
-              style={{ fontSize: 11, fontWeight: 600 }}
-            >
-              {BAND_LABEL[avgBand]}
-            </span>
-          )}
-        </div>
-        <p className="mt-1 t-meta text-ink-3" style={{ fontSize: 10 }}>
+      <section className="mb-5">
+        <StatsGrid
+          stats={[
+            { label: "Total views", value: compactNumber(totalViews) },
+            { label: "Engagement", value: percent(engagementRate) },
+            {
+              label: "Avg health",
+              value: covered > 0 ? String(avgHealth) : "—",
+              trend:
+                covered > 0
+                  ? {
+                      kind:
+                        avgBand === "excellent" || avgBand === "strong"
+                          ? "good"
+                          : avgBand === "weak" || avgBand === "critical"
+                            ? "bad"
+                            : "neutral",
+                      label: BAND_LABEL[avgBand],
+                    }
+                  : null,
+            },
+            { label: "Posts (30d)", value: compactNumber(totalPosts) },
+          ]}
+        />
+        <p
+          className="mt-2 t-meta text-right text-ink-3"
+          style={{ fontSize: 10 }}
+        >
           {covered} of {scopedAccounts.length} accounts scored
         </p>
       </section>
@@ -780,18 +793,14 @@ function SettingRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatCell({ label, value }: { label: string; value: string }) {
+function StatRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-line bg-surface px-3 py-3">
-      <div className="t-micro text-ink-3">{label}</div>
+    <div className="flex items-center justify-between gap-3 px-4 py-3">
+      <div className="t-small text-ink-3">{label}</div>
       <div
         data-numeric
-        className="mt-1 text-ink"
-        style={{
-          fontFamily: "var(--font-unbounded)",
-          fontWeight: 800,
-          fontSize: 18,
-        }}
+        className="text-right text-ink"
+        style={{ fontFamily: "var(--font-mono)", fontSize: 13 }}
       >
         {value}
       </div>
