@@ -14,7 +14,28 @@ import {
   computeAccountHealth,
 } from "@/lib/data/health";
 import { windowDaysFor } from "@/lib/data/report-snapshot";
+import { dailySeries } from "@/lib/data/posts";
 import { compactNumber, percent, relativeDate } from "@/lib/format";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  CHART_MARGIN,
+  ChartCard,
+  ChartTooltip,
+  X_AXIS,
+  Y_AXIS,
+} from "@/components/charts";
 import { StatsGrid } from "@/components/stats-grid";
 import { paletteBg } from "@/lib/data/palette";
 import { TabNav } from "@/components/tab-nav";
@@ -461,6 +482,11 @@ function RecentTab({
         </p>
       </section>
 
+      <ReportTrends
+        postsInWindow={allPosts}
+        windowDays={windowDays}
+      />
+
       <section className="mb-5">
         <h3 className="t-micro mb-2 px-1 text-ink-3">Top 3 accounts</h3>
         <ul className="flex flex-col gap-2">
@@ -772,6 +798,152 @@ function relativeLastPost(
   const days = hours / 24;
   if (days < 10) return `${days.toFixed(1)}d`;
   return `${Math.round(days)}d`;
+}
+
+// Per-day aggregate charts across every post in the report's window.
+// Three stacked cards: total views (area), engagement rate (line),
+// posts per day (bar). Reuses the same primitives as the per-account
+// `/accounts/[id]` page so the two pages feel like siblings.
+function ReportTrends({
+  postsInWindow,
+  windowDays,
+}: {
+  postsInWindow: PostRow[];
+  windowDays: number;
+}) {
+  if (postsInWindow.length === 0) {
+    return null;
+  }
+
+  const series = dailySeries(postsInWindow, windowDays);
+  const totalViews = series.reduce((s, p) => s + p.views, 0);
+  const totalPosts = series.reduce((s, p) => s + p.posts, 0);
+  // Engagement rate is weighted by views, so an average-of-daily-rates
+  // can mislead on light-traffic days. Re-derive from the totals.
+  const totalEng = postsInWindow.reduce(
+    (s, p) => s + p.likes + p.comments + p.shares,
+    0,
+  );
+  const avgEngagement = totalViews > 0 ? totalEng / totalViews : 0;
+  const rangeLabel = `${windowDays}d`;
+
+  return (
+    <section className="mb-5">
+      <h3 className="t-micro mb-2 px-1 text-ink-3">Trends</h3>
+      <div className="flex flex-col gap-3">
+        <ChartCard
+          label="Daily views"
+          value={compactNumber(totalViews)}
+          valueLabel={`total · ${rangeLabel}`}
+          chart={
+            <ResponsiveContainer width="100%" height={150}>
+              <AreaChart data={series} margin={CHART_MARGIN}>
+                <defs>
+                  <linearGradient
+                    id="report-views-fill"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop
+                      offset="0%"
+                      stopColor="var(--accent)"
+                      stopOpacity={0.32}
+                    />
+                    <stop
+                      offset="100%"
+                      stopColor="var(--accent)"
+                      stopOpacity={0}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  stroke="var(--line)"
+                  strokeDasharray="3 3"
+                  vertical={false}
+                />
+                <XAxis {...X_AXIS} />
+                <YAxis
+                  {...Y_AXIS}
+                  width={36}
+                  tickFormatter={(v: number) => compactNumber(v)}
+                />
+                <Tooltip content={<ChartTooltip formatter={compactNumber} />} />
+                <Area
+                  type="monotone"
+                  dataKey="views"
+                  stroke="var(--accent)"
+                  strokeWidth={2}
+                  fill="url(#report-views-fill)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          }
+        />
+
+        <ChartCard
+          label="Engagement rate"
+          value={avgEngagement > 0 ? percent(avgEngagement, 2) : "—"}
+          valueLabel={`weighted · ${rangeLabel}`}
+          chart={
+            <ResponsiveContainer width="100%" height={150}>
+              <LineChart data={series} margin={CHART_MARGIN}>
+                <CartesianGrid
+                  stroke="var(--line)"
+                  strokeDasharray="3 3"
+                  vertical={false}
+                />
+                <XAxis {...X_AXIS} />
+                <YAxis
+                  {...Y_AXIS}
+                  width={36}
+                  tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
+                />
+                <Tooltip
+                  content={
+                    <ChartTooltip formatter={(n: number) => percent(n, 1)} />
+                  }
+                />
+                <Line
+                  type="monotone"
+                  dataKey="engagement"
+                  stroke="var(--good)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          }
+        />
+
+        <ChartCard
+          label="Posts per day"
+          value={totalPosts.toString()}
+          valueLabel={`total · ${rangeLabel}`}
+          chart={
+            <ResponsiveContainer width="100%" height={130}>
+              <BarChart data={series} margin={CHART_MARGIN}>
+                <CartesianGrid
+                  stroke="var(--line)"
+                  strokeDasharray="3 3"
+                  vertical={false}
+                />
+                <XAxis {...X_AXIS} />
+                <YAxis {...Y_AXIS} width={28} allowDecimals={false} />
+                <Tooltip content={<ChartTooltip />} />
+                <Bar
+                  dataKey="posts"
+                  fill="var(--info)"
+                  radius={[3, 3, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          }
+        />
+      </div>
+    </section>
+  );
 }
 
 function HistoryTab({
