@@ -15,6 +15,11 @@ const APIFY_ENDPOINT =
 // different versions of `apidojo~tiktok-scraper-api` return subtly
 // different field names. We treat the payload as a permissive bag and
 // try multiple aliases for every field we care about.
+//
+// Current shape (May 2026) uses `channel.*`, `title`, `postPage`,
+// `uploadedAt`, `bookmarks`. Prior shapes used `authorMeta.*` /
+// `author.*`, `text`/`desc`, `webVideoUrl`, `createTime`,
+// `collectCount`. We accept both so an actor revert doesn't break us.
 export type ApifyTikTokPost = {
   // IDs across actor versions
   id?: string | number;
@@ -33,11 +38,13 @@ export type ApifyTikTokPost = {
   publishTime?: string | number;
 
   // Captions
+  title?: string;
   text?: string;
   desc?: string;
   description?: string;
 
   // URLs
+  postPage?: string;
   webVideoUrl?: string;
   shareUrl?: string;
   videoUrl?: string;
@@ -57,9 +64,17 @@ export type ApifyTikTokPost = {
   collectCount?: number;
   saveCount?: number;
   saves?: number;
+  bookmarks?: number;
 
-  // Authorship (different shapes)
+  // Authorship (different shapes across actor versions)
   username?: string;
+  channel?: {
+    id?: string | number;
+    name?: string;
+    username?: string;
+    followers?: number;
+    verified?: boolean;
+  };
   authorMeta?: {
     fans?: number;
     name?: string;
@@ -130,6 +145,8 @@ export async function scrapeTikTokUrl(opts: {
 // handle without the leading `@`.
 export function postHandle(p: ApifyTikTokPost): string | null {
   const raw =
+    p.channel?.username ??
+    p.channel?.name ??
     p.authorMeta?.uniqueId ??
     p.authorMeta?.unique_id ??
     p.authorMeta?.name ??
@@ -183,13 +200,19 @@ export function mapApifyPost(p: ApifyTikTokPost): PostMapped | null {
   return {
     platform_post_id,
     posted_at,
-    url: p.webVideoUrl ?? p.videoUrl ?? p.shareUrl ?? p.submittedVideoUrl ?? null,
-    caption: p.text ?? p.desc ?? p.description ?? null,
+    url:
+      p.postPage ??
+      p.webVideoUrl ??
+      p.videoUrl ??
+      p.shareUrl ??
+      p.submittedVideoUrl ??
+      null,
+    caption: p.title ?? p.text ?? p.desc ?? p.description ?? null,
     views: numberOr0(p.playCount, p.viewCount, p.views),
     likes: numberOr0(p.diggCount, p.likeCount, p.likes),
     comments: numberOr0(p.commentCount, p.comments),
     shares: numberOr0(p.shareCount, p.shares),
-    saves: numberOr0(p.collectCount, p.saveCount, p.saves),
+    saves: numberOr0(p.collectCount, p.saveCount, p.saves, p.bookmarks),
     raw: p,
   };
 }
