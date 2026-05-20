@@ -5,9 +5,13 @@ import { useEffect, useState } from "react";
 import { Sheet } from "@/components/sheet";
 import { useShell } from "@/components/shell-context";
 import {
+  addReportRecipient,
   deleteReport,
   getReport,
+  listReportRecipients,
+  removeReportRecipient,
   updateReport,
+  type ReportRecipientRow,
 } from "@/lib/data/reports";
 import { useAuthUser } from "@/lib/use-auth-user";
 import type { ReportRow } from "@/lib/data/types";
@@ -51,6 +55,16 @@ export function ManageReportSheet({
     | { kind: "error"; message: string }
   >({ kind: "idle" });
 
+  // Recipients panel state. `recipients` is sourced from
+  // `report_recipients` whenever the sheet opens with a fresh
+  // reportId, then mutated locally on add/remove so the UI stays
+  // snappy without re-fetching.
+  const [recipients, setRecipients] = useState<ReportRecipientRow[]>([]);
+  const [recipientsLoading, setRecipientsLoading] = useState(false);
+  const [newRecipient, setNewRecipient] = useState("");
+  const [recipientError, setRecipientError] = useState("");
+  const [recipientBusy, setRecipientBusy] = useState(false);
+
   // Run-now (dev) state
   const [runState, setRunState] = useState<
     | { kind: "idle" }
@@ -85,6 +99,22 @@ export function ManageReportSheet({
     setTestState({ kind: "idle" });
     setRunState({ kind: "idle" });
     setConfirmDelete(false);
+
+    // Load recipients in parallel with the report row.
+    setRecipientsLoading(true);
+    setNewRecipient("");
+    setRecipientError("");
+    listReportRecipients(reportId)
+      .then((rows) => {
+        if (!cancelled) setRecipients(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setRecipients([]);
+      })
+      .finally(() => {
+        if (!cancelled) setRecipientsLoading(false);
+      });
+
     return () => {
       cancelled = true;
     };
@@ -97,7 +127,52 @@ export function ManageReportSheet({
     setTestState({ kind: "idle" });
     setRunState({ kind: "idle" });
     setConfirmDelete(false);
+    setRecipientError("");
+    setNewRecipient("");
     onClose();
+  }
+
+  async function addRecipient() {
+    if (!report) return;
+    const candidate = newRecipient.trim().toLowerCase();
+    if (!candidate) return;
+    if (!/^.+@.+\..+/.test(candidate)) {
+      setRecipientError("Looks off — check the email and try again.");
+      return;
+    }
+    if (recipients.some((r) => r.email.toLowerCase() === candidate)) {
+      setRecipientError("That address is already on this report.");
+      return;
+    }
+    setRecipientBusy(true);
+    setRecipientError("");
+    try {
+      const row = await addReportRecipient(report.id, candidate);
+      setRecipients((prev) =>
+        [...prev, row].sort((a, b) => a.email.localeCompare(b.email)),
+      );
+      setNewRecipient("");
+    } catch (err) {
+      setRecipientError(
+        err instanceof Error ? err.message : "Couldn't add that one.",
+      );
+    } finally {
+      setRecipientBusy(false);
+    }
+  }
+
+  async function removeRecipient(id: string) {
+    const prev = recipients;
+    // Optimistic — drop locally first, restore on failure.
+    setRecipients((rows) => rows.filter((r) => r.id !== id));
+    try {
+      await removeReportRecipient(id);
+    } catch (err) {
+      setRecipients(prev);
+      setRecipientError(
+        err instanceof Error ? err.message : "Couldn't remove that one.",
+      );
+    }
   }
 
   async function save() {
@@ -337,6 +412,103 @@ export function ManageReportSheet({
                 role="alert"
               >
                 {error}
+              </p>
+            )}
+          </section>
+
+          <section className="mb-5">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <h3 className="t-micro text-ink-3">
+                Recipients{" "}
+                <span
+                  data-numeric
+                  className="text-ink-4"
+                  style={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
+                >
+                  {recipientsLoading ? "…" : recipients.length}
+                </span>
+              </h3>
+            </div>
+            <p className="mb-2 t-small text-ink-3">
+              Every address listed here receives the report on each scheduled
+              send (Monday for weekly, 1st for monthly).
+            </p>
+
+            {recipientsLoading ? (
+              <div className="rounded-md border border-dashed border-line-2 bg-surface px-3 py-4 text-center t-small text-ink-3">
+                Loading…
+              </div>
+            ) : recipients.length === 0 ? (
+              <div className="rounded-md border border-dashed border-line-2 bg-surface px-3 py-4 text-center">
+                <p className="t-small text-ink-2">No recipients yet.</p>
+                <p
+                  className="mt-1 t-meta text-ink-3"
+                  style={{ fontSize: 10 }}
+                >
+                  Add at least one address below.
+                </p>
+              </div>
+            ) : (
+              <ul className="mb-2 flex flex-col gap-1.5">
+                {recipients.map((r) => (
+                  <li key={r.id}>
+                    <div className="flex items-center gap-2 rounded-md border border-line bg-surface px-3 py-2">
+                      <span
+                        data-numeric
+                        className="min-w-0 flex-1 truncate t-body text-ink"
+                        style={{ fontFamily: "var(--font-mono)", fontSize: 13 }}
+                      >
+                        {r.email}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeRecipient(r.id)}
+                        aria-label={`Remove ${r.email}`}
+                        title="Remove"
+                        className="tap-btn inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-3 hover:bg-surface-2 hover:text-ink"
+                      >
+                        <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>
+                          ×
+                        </span>
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void addRecipient();
+              }}
+              className="flex gap-2"
+            >
+              <input
+                type="email"
+                value={newRecipient}
+                onChange={(e) => {
+                  setNewRecipient(e.target.value);
+                  if (recipientError) setRecipientError("");
+                }}
+                placeholder="new.recipient@example.com"
+                disabled={recipientBusy}
+                className="h-10 flex-1 rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-60"
+              />
+              <button
+                type="submit"
+                disabled={!newRecipient.trim() || recipientBusy}
+                className="tap-btn rounded-sm bg-accent px-3 py-2 t-small font-semibold text-[#0A0A0A] hover:bg-accent-dim disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {recipientBusy ? "Adding…" : "Add"}
+              </button>
+            </form>
+            {recipientError && (
+              <p
+                className="mt-2 rounded-sm border border-bad bg-bad-soft px-3 py-2 t-small text-bad"
+                role="alert"
+              >
+                {recipientError}
               </p>
             )}
           </section>

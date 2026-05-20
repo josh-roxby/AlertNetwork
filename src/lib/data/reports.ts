@@ -167,3 +167,49 @@ export async function getReportScopeIds(
   if (error) throw error;
   return (data ?? []).map((r) => r.account_id as string);
 }
+
+// Recipients on a report. RLS gates these the same way as
+// report_history — the policy resolves via report.project.owner_id.
+
+export type ReportRecipientRow = {
+  id: string;
+  report_id: string;
+  email: string;
+};
+
+export async function listReportRecipients(
+  reportId: string,
+): Promise<ReportRecipientRow[]> {
+  const supabase = supabaseBrowser();
+  const { data, error } = await supabase
+    .from("report_recipients")
+    .select("id, report_id, email")
+    .eq("report_id", reportId)
+    .order("email", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as ReportRecipientRow[];
+}
+
+export async function addReportRecipient(
+  reportId: string,
+  email: string,
+): Promise<ReportRecipientRow> {
+  const supabase = supabaseBrowser();
+  const trimmed = email.trim().toLowerCase();
+  const { data, error } = await supabase
+    .from("report_recipients")
+    .insert({ report_id: reportId, email: trimmed })
+    .select("id, report_id, email")
+    .single();
+  if (error) throw error;
+  return data as ReportRecipientRow;
+}
+
+export async function removeReportRecipient(recipientId: string): Promise<void> {
+  const supabase = supabaseBrowser();
+  const { error } = await supabase
+    .from("report_recipients")
+    .delete()
+    .eq("id", recipientId);
+  if (error) throw error;
+}
