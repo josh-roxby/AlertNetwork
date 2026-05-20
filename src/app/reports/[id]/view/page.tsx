@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { ReportView } from "@/components/report-view";
 import { PasswordGate } from "@/components/password-gate";
 import { computeAccountHealth } from "@/lib/data/health";
+import { dailySeries, type DailyPoint } from "@/lib/data/posts";
 import { isoDaysAgo } from "@/lib/time";
 import {
   windowDaysFor,
@@ -70,12 +71,18 @@ export default async function ReportViewPage({
       .maybeSingle();
     const payload = (h?.payload as ReportSnapshotV1 | null) ?? null;
     if (h && payload && payload.version === 1) {
+      // Charts come from the snapshot when present; legacy snapshots
+      // produced before this PR have no daily_series so fall back to
+      // an empty array and the renderer hides the section.
+      const snapshotSeries: DailyPoint[] = payload.daily_series ?? [];
       return (
         <ReportView
           report={r}
           enriched={enrichedFromSnapshot(payload)}
           postsByAccount={postsByAccountFromSnapshot(payload)}
           historySentAt={(h.sent_at as string) ?? null}
+          dailySeriesData={snapshotSeries}
+          windowDays={payload.window_days}
         />
       );
     }
@@ -147,12 +154,23 @@ export default async function ReportViewPage({
     historySentAt = (h?.sent_at as string | undefined) ?? null;
   }
 
+  // Aggregate per-day series across every scoped account for the
+  // current window — used by the Trends section. Zero-filled by
+  // dailySeries so the line draws cleanly across empty days.
+  const allWindowPosts: PostRow[] = [];
+  for (const ps of postsByAccount.values()) {
+    for (const p of ps) allWindowPosts.push(p);
+  }
+  const dailySeriesData = dailySeries(allWindowPosts, windowDays);
+
   return (
     <ReportView
       report={r}
       enriched={enriched}
       postsByAccount={postsByAccount}
       historySentAt={historySentAt}
+      dailySeriesData={dailySeriesData}
+      windowDays={windowDays}
     />
   );
 }
