@@ -5,9 +5,11 @@ Guidance for Claude Code working in the AlertNetwork repository. Read this befor
 ## TL;DR
 
 - Next.js 16 App Router, TypeScript, Tailwind v4, Recharts. `src/` layout. App Router routes under `src/app`.
-- All UI scope (Groups A–L from the voice-note todo lists) is on `main`. Remaining work is **M** (Supabase), **N** (scrape + email), **O** (GitHub cron). See `TODO.md`.
 - Mobile-first by design. Mobile shell renders below `lg:`; `DesktopShell` (sidebar + top bar) renders at `lg:` and up. Both shells are in the DOM and toggled via Tailwind responsive classes — no JS switch.
-- Placeholder data and a no-op auth stub gate the back end. Both are clearly flagged and ready for the real implementation in M.
+- Backed by Supabase (auth + DB) and Apify (TikTok scraping). All UI reads live data — the placeholder stub is gone. Migrations are in `supabase/migrations/`.
+- Four access tiers: **super_admin** (in `super_admins` — only ones who can create projects), **owner** (`projects.owner_id`), **manager** (`project_members.role='manager'`), **viewer** (`project_members.role='viewer'`). RLS enforces all of this via `is_super_admin()` / `is_project_owner()` / `can_manage_project()` / `is_project_member()` helpers.
+- The daily scrape is fired by **three independent triggers** (pg_cron, Vercel Cron, GitHub Actions), dedup'd in the route via `scrape_runs`. See `supabase/setup-pg-cron.sql` and `supabase/README.md`.
+- See `TODO.md` for open work + `SESSION_LOG.md` for why things were built the way they were.
 
 ## Branching model
 
@@ -85,17 +87,16 @@ Mount new sheets in `shell.tsx` and add the kind to the union.
 | `/reports/[id]/view` | server → `PasswordGate` or `ReportView` | View-only, no shell. Document layout, print-friendly |
 | `/settings` | client | Sectioned `SettingsRow`s; rows open management sheets |
 
-### Placeholder data
+### Data layer
 
-Everything reads from `src/lib/placeholder-data.ts`. The module exports:
+Live data from Supabase. Every page reads via the helpers in `src/lib/data/` (accounts, posts, reports, projects, members, scrape-runs, report-snapshot, health). RLS gates every read on the browser-side anon client; server-side mutations that need to bypass RLS use `supabaseAdmin()` from `src/lib/supabase-admin.ts`.
 
-- Typed entities: `Account`, `Category`, `Project`, `Report`, `ReportHistoryEntry`, `AccountSeriesPoint`.
-- Arrays: `placeholderAccounts` (8 acc_*), `placeholderProjects` (3 prj_*), `placeholderReports` (3 rep_*). Stable IDs.
-- Helpers: `findAccount(id)`, `findReport(id)`, `accountsForReport(report)`, `accountTimeSeries(account, days=90)`.
-- `PLACEHOLDER_MODE = true` flag. The top-bar / drawer reads this to show the "Placeholder data" badge.
-- `rep_01` has `password: "clientx"` so the password gate is testable.
+Auth state + per-project role lives in `ShellContext` (`src/components/shell-context.tsx`):
 
-Time series is **deterministic per account** — mulberry32 seeded by `account.id`. Charts stay stable across renders, but every account has a slightly different shape.
+- `currentRole: 'owner' | 'manager' | 'viewer' | null` — for the **active** project.
+- `isOwner` / `canManage` — derived booleans gating UI affordances.
+- `isSuperAdmin` — from the `is_super_admin()` RPC, controls "New project" affordances.
+- `bootstrapping` — true until the first projects fetch + super-admin RPC resolve. Pages gate on it before any other branching to avoid one-frame empty-state flashes.
 
 ### Theming
 
@@ -103,11 +104,13 @@ Inline pre-paint script in `src/app/layout.tsx` reads `localStorage('anw-theme')
 
 All colours are CSS vars in `globals.css`. Both `[data-theme="dark"]` (default) and `[data-theme="light"]` are defined. Tokens exposed to Tailwind v4 via `@theme inline`.
 
-### Auth stub
+### Auth
 
-`src/proxy.ts` is a no-op proxy gated by `AUTH_ENABLED = false`. When M-3 lands, flip the flag and the proxy starts enforcing. Note: the file was renamed from `middleware.ts` → `proxy.ts` per Next 16's convention.
+Live. Supabase magic-link only, **invite-only** — `/auth/callback` rejects sign-ins from emails with no `super_admins` row, no owned project, and no `project_members` row. The view-only page's password gate is server-validated via `/api/reports/[id]/unlock` and an HttpOnly cookie.
 
-The view-only page's password gate (`src/components/password-gate.tsx`) is preview-only — it stores the unlock flag in `localStorage`. Real implementation needs server-side validation + HttpOnly cookie.
+### Scheduled jobs
+
+Three independent triggers, dedup'd in the route. See `supabase/setup-pg-cron.sql` for the pg_cron schedule (primary), `vercel.json` for Vercel Cron (fallback), `.github/workflows/cron.yml` for GitHub Actions (fallback). Every invocation lands a row in `scrape_runs` — that's the source of truth for "did the cron fire?".
 
 ## Preferred patterns
 
