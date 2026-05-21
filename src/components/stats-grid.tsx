@@ -6,6 +6,11 @@ type Trend =
 
 export type Stat = {
   label: string;
+  // Optional ReactNode that replaces the rendered label — used by
+  // tiles that want an interactive header (e.g. a window-range
+  // dropdown). The text `label` is still required because it backs
+  // the `key` used when rendering the grid.
+  labelEl?: React.ReactNode;
   value: string;
   trend?: Trend;
 };
@@ -20,10 +25,10 @@ export function StatsGrid({ stats }: { stats: Stat[] }) {
   );
 }
 
-function Cell({ label, value, trend }: Stat) {
+function Cell({ label, labelEl, value, trend }: Stat) {
   return (
     <div className="rounded-md border border-line bg-surface px-3 py-3">
-      <div className="t-micro text-ink-3">{label}</div>
+      <div className="t-micro text-ink-3">{labelEl ?? label}</div>
       <div className="mt-1 flex items-end justify-between gap-2">
         <span
           data-numeric
