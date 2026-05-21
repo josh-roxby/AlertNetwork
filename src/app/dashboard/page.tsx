@@ -14,6 +14,7 @@ import {
   SkeletonStatsGrid,
 } from "@/components/skeletons";
 import { useShell, useActiveProject } from "@/components/shell-context";
+import { useAuthUser } from "@/lib/use-auth-user";
 import { paletteBg } from "@/lib/data/palette";
 import {
   BAND_TONE,
@@ -38,6 +39,10 @@ export default function DashboardPage() {
     openSheet,
     canManage,
     isSuperAdmin,
+    projects,
+    projectsLoading,
+    currentRole,
+    refreshProjects,
   } = useShell();
   const project = useActiveProject();
   const [filter, setFilter] = useState<DashboardFilter>("all");
@@ -79,19 +84,13 @@ export default function DashboardPage() {
 
   if (!activeProjectId) {
     return (
-      <EmptyState
-        title={
-          isSuperAdmin
-            ? "Create your first project"
-            : "Waiting for an invite"
-        }
-        body={
-          isSuperAdmin
-            ? "A project is a workspace for monitoring TikTok accounts. Once you create one, you can start adding accounts."
-            : "You haven't been added to any projects yet. Ask the super admin to invite you."
-        }
-        cta={isSuperAdmin ? "New project" : undefined}
-        onCta={
+      <NoActiveProjectState
+        isSuperAdmin={isSuperAdmin}
+        currentRole={currentRole}
+        projectsLoading={projectsLoading}
+        projectsCount={projects.length}
+        onRefresh={refreshProjects}
+        onNewProject={
           isSuperAdmin ? () => openSheet({ kind: "newProject" }) : undefined
         }
       />
@@ -404,6 +403,120 @@ function TopHealthTile({
         View account →
       </span>
     </Link>
+  );
+}
+
+// Shown whenever the dashboard mounts without an active project.
+// Two ways to land here: (1) genuinely new user with no membership
+// yet, or (2) a stale/auth-broken state where we know the user is
+// signed in but their projects failed to load. Surfacing the email
+// + detected role + a refresh button turns the latter from "stuck"
+// into "self-debuggable".
+function NoActiveProjectState({
+  isSuperAdmin,
+  currentRole,
+  projectsLoading,
+  projectsCount,
+  onRefresh,
+  onNewProject,
+}: {
+  isSuperAdmin: boolean;
+  currentRole: ReturnType<typeof useShell>["currentRole"];
+  projectsLoading: boolean;
+  projectsCount: number;
+  onRefresh: () => Promise<void>;
+  onNewProject?: () => void;
+}) {
+  const user = useAuthUser();
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  const heading = isSuperAdmin
+    ? "Create your first project"
+    : projectsCount === 0
+      ? "Waiting for an invite"
+      : "Pick a project";
+  const body = isSuperAdmin
+    ? "A project is a workspace for monitoring TikTok accounts. Once you create one, you can start adding accounts."
+    : projectsCount === 0
+      ? "You haven't been added to any projects yet. Ask the super admin to invite you. If you were just invited, try refreshing."
+      : "Open a project from the Projects page to get started.";
+
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center px-3 text-center">
+      <span
+        aria-hidden
+        className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-accent"
+      >
+        <IconPlus />
+      </span>
+      <h1 className="t-display-3 uppercase text-ink">{heading}</h1>
+      <p className="mt-2 max-w-[36ch] t-body text-ink-2">{body}</p>
+
+      {/* Diagnostic block — small, always visible. If josh sees
+          "Waiting for an invite" he can immediately confirm which
+          email is signed in + what role the server thinks he has. */}
+      <div className="mt-5 w-full max-w-[32ch] rounded-sm border border-line-2 bg-surface-2 px-3 py-2.5 text-left">
+        <div
+          className="t-meta text-ink-3"
+          style={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
+        >
+          <div className="flex justify-between gap-3">
+            <span className="text-ink-4">Signed in as</span>
+            <span className="truncate text-ink">{user?.email ?? "—"}</span>
+          </div>
+          <div className="mt-1 flex justify-between gap-3">
+            <span className="text-ink-4">Role</span>
+            <span className="text-ink">
+              {isSuperAdmin
+                ? `super_admin${currentRole ? ` · ${currentRole}` : ""}`
+                : (currentRole ?? "none")}
+            </span>
+          </div>
+          <div className="mt-1 flex justify-between gap-3">
+            <span className="text-ink-4">Projects loaded</span>
+            <span className="text-ink">
+              {projectsLoading ? "loading…" : projectsCount}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+        {onNewProject && (
+          <button
+            type="button"
+            onClick={onNewProject}
+            className="tap-btn inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
+          >
+            <IconPlus stroke="#0A0A0A" />
+            New project
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="tap-btn inline-flex items-center gap-2 rounded-sm border border-line-2 bg-surface px-3 py-2 t-small text-ink-2 hover:bg-surface-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {refreshing ? "Refreshing…" : "Refresh data"}
+        </button>
+        <Link
+          href="/auth/sign-out"
+          className="tap-btn inline-flex items-center gap-2 rounded-sm border border-line-2 bg-surface px-3 py-2 t-small text-ink-3 hover:bg-surface-2 hover:text-ink"
+        >
+          Sign out
+        </Link>
+      </div>
+    </div>
   );
 }
 
