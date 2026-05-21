@@ -1,96 +1,95 @@
 # TODO
 
-Project work list for AlertNetwork. Organised by feature group. Format: `A-1-1` = group A, item 1, sub-item 1.
+Active work list for AlertNetwork. Sections in priority order: things to ship, things to consider, things to come back to.
 
-> All UI scope (Groups A–L) is now on `main`. Open work is the bigger initiatives — **M** Supabase, **N** scrape + email, **O** GitHub cron — plus a couple of small carry-overs.
+For session-by-session history (decision context, why things were built the way they were), see `SESSION_LOG.md`. For the codebase shape + architectural conventions, see `CLAUDE.md`.
+
+---
 
 ## Status snapshot
 
-| Scope | Status | PRs |
-|---|---|---|
-| A — Global polish | ✅ Done | #13 |
-| B — Dashboard expansion | ✅ Done | #14 |
-| C — Account UI fixes | ✅ Done | #15 |
-| D — Account detail page | ✅ Done | #16 |
-| E — Reports list / detail enhancements | ✅ Done | #17 |
-| F — Shareable view-only + password gate | ✅ Done | #18 |
-| G — Theme + cleanups + back-history + desktop layout | ✅ Done | #19, #24 |
-| H — Dashboard interactivity | ✅ Done | #20 |
-| I — Account UI deep cuts (tier removal, edit, add-account form) | ✅ Done | #20, #21 |
-| J — Reports polish (PDF, view FAB, NewReport parity) | ✅ Done | #23 |
-| K — Settings cleanups + management modals | ✅ Done | #19, #21 |
-| L — Navigation + projects | ✅ Done | #22 |
-| **M — Supabase / DB** | 🟡 Pending | — |
-| **N — Scrape + email functions** | 🟡 Pending | — |
-| **O — GitHub cron** | 🟡 Pending | — |
+Everything below the snapshot is open work. Anything not listed is shipped.
 
-## Open (next round)
+| Area | State |
+|---|---|
+| Apify daily scrape | ✅ pg_cron + Vercel + GH Actions, dedup'd, audited |
+| Daily / weekly reports | ✅ Cron-driven, snapshot frozen, email via Gmail SMTP |
+| Multi-user auth | ✅ Super admin / owner / manager / viewer tiers |
+| Invite-only sign-up | ✅ Auth callback rejects non-invitees |
+| Backfill (1-12 months) | ✅ Super-admin only, Manage Project sheet |
+| Email branding | ✅ Brand-yellow report CTA + branded auth templates ready to paste in |
+| `scrape_runs` audit | ✅ Every cron + manual run lands a row |
 
-### Decisions (settled 2026-05-14)
+---
 
-- **Auth**: Supabase magic link only. No password flow, no OAuth (can add later).
-- **Tenancy**: single owner per project. `projects.owner_id = auth.uid()` is the only RLS root; cascade through FKs. `project_members` table dropped. The "Manage team" sheet stays as a placeholder until we add membership.
-- **No `snapshots` table**: charts compute from `posts` directly. Revisit if query perf needs a pre-aggregate.
-- **Posts**: backend-only for this round; no new Posts UI on `/accounts/[id]`.
+## Open follow-ups (small, ready to start any time)
 
-### M. Database (Supabase)
+These are concrete fixes / improvements that came out of the work in `SESSION_LOG.md`. Each is ~1 PR.
 
-- [ ] **M-1** Provision a Supabase project (user). Capture URL, anon key, service role key in `.env.local` (and Vercel env vars across Production / Preview / Development). See `supabase/README.md`.
-- [x] **M-2 scaffolding** SQL migration + Supabase client modules. `supabase/migrations/0001_init.sql` is the schema source of truth; `src/lib/supabase.ts`, `supabase-server.ts`, `supabase-admin.ts` are the three client wrappers.
-- [ ] **M-3** Wire auth + replace placeholder data.
-  - Add `/login` (magic-link request form) + the email callback route.
-  - Flip `src/proxy.ts` `AUTH_ENABLED` to `true`; check Supabase session, redirect unauth'd traffic.
-  - Replace localStorage password gate (`src/components/password-gate.tsx`) with HttpOnly cookie + server-side check against `reports.password_hash`.
-  - Swap every page's read from `src/lib/placeholder-data.ts` to Supabase queries. Add proper empty states for projects / accounts / categories / tags. Delete `placeholder-data.ts` and the `PLACEHOLDER_MODE` badge once nothing imports it.
+- [ ] **`last_scraped_at` shouldn't lie.** The daily cron currently bumps `accounts.last_scraped_at` even when `upsertPosts` writes 0 posts for that account. Caused the entire May-19 debug saga. Move the bump to only when `written > 0`. Surface "stale scrape" warnings on the account detail page when `last_scraped_at` is older than 36h.
+- [ ] **Followers sync on every scrape.** `accounts.followers` exists but the cron never updates it. Apify returns `channel.followers` on each post payload — pluck it from any post in the bucket on each scrape, write it to the account row. Unlocks better health-scoring later (ratio of views to followers).
+- [ ] **Avatar / display_name sync.** Same as followers — Apify returns `channel.name` and `channel.avatar`. Storing the avatar URL would let the dashboard show a profile pic next to each handle. Display name is already a column, just isn't being populated.
+- [ ] **Slack/Discord webhook on cron failure.** When `scrape_runs.status = 'failed'` lands, hit a webhook URL. Means cron breakage shows up in your phone notifications, not via you noticing stale dashboard data 2 days later. Two-line addition in `finishScrapeRun`.
+- [ ] **CSV export on report detail.** Manager/owner asks for raw data dump — currently no path. Add a "Download CSV" button on the report Recent tab that includes the same data the snapshot carries. ~30 LOC.
+- [ ] **Project-tile metrics row on `/projects`** *(confirmed by user, ready)*. Each project card grows a small horizontal stats row: total views (30d), avg ER, accounts count, MoM delta on views. Same `AccountStatsBlock` pattern but project-level. Helps you scan multi-project health from the project switcher.
 
-### N. Scrape + cron API routes
+---
 
-Apify constraints to bake in:
-- Endpoint: `POST https://api.apify.com/v2/acts/apidojo~tiktok-scraper-api/run-sync-get-dataset-items?token=$APIFY_API_KEY` — sync, dataset items inline in response.
-- 48h window is **server-side filtering** — Apify's `dateRange` only applies to keyword search, not `startUrls`. User feeds return most-recent first; we filter by post `createTime`.
-- `maxItems: 50` per account (~30 surfaces is typical). Cost reference: $0.0003/post × 30 × 100 accounts ≈ $0.90/day.
-- Keep the raw response in `posts.raw` (JSONB). Extract typed columns: `views, likes, comments, shares, saves, posted_at`. Engagement ratio is derived at query time.
+## In consideration (suggestions, awaiting decision)
 
-- [ ] **N-1** `GET /api/accounts` — list accounts for the logged-in user (RLS-gated). Returns `{ id, url, project_id, last_scraped_at }`.
-- [ ] **N-2** `POST /api/scrape/tiktok-daily` — body `{ accountId, url }`. Calls Apify, filters to last 48h, upserts `posts` on `(account_id, platform_post_id)`. Returns `{ scanned, inserted, updated }`. Idempotent — safe to retry.
-- [ ] **N-3** `POST /api/cron/daily` — guarded by `CRON_SHARED_SECRET`. Uses service-role client to read all accounts, then calls per-account scrape (sequential or limited concurrency of ~5). Returns a per-account summary.
-- [ ] **N-4** Email/report dispatch — separate slice, opened after the daily-scrape pipeline is producing real data. Will reuse `src/components/report-view.tsx` for HTML email rendering.
+Categorised. Each item has my honest take so you can pick — none are "you must do this".
 
-### O. GitHub Cron
+### Reporting / UX
 
-- [ ] **O-1** `.github/workflows/cron.yml` — `schedule: '0 8 * * *'` (08:00 UTC daily). Hits `/api/cron/daily` on the deployed Vercel URL with the `CRON_SHARED_SECRET` repo secret. Document the secret rotation runbook in `supabase/README.md`. Email/report cron is a separate workflow added with N-4.
+- **Server-side PDF generation.** Currently the share view uses the browser's "Print to PDF". Server-rendered PDFs (Browserless / Puppeteer-on-Render / similar) would let us attach the PDF directly to the report email. Bigger lift (new infra), and the existing print pipeline mostly works — only worth it if recipients actually ask for attached PDFs.
+- **Trend annotations.** Mark events on the daily-views chart — "campaign X launched", "first post over 100k". Stored as a small `account_annotations(account_id, date, label)` table. Owner adds them from the account detail page. Makes the trend graphs much more interpretable. Medium lift.
+- **Inline history sparkline on report detail.** Right now you open the History tab to see past sends. Could show the last 5 sends as a tiny sparkline on the Recent tab — quick "are we trending up or down" without clicking through. Small.
+- **Custom subject line per report.** Owner sets a template (`"{name} weekly — {date}"`) that overrides the default. Small. Worth it if you start running many reports.
+- **Per-account drill-down link in email.** Each account row in the dense block could be a link to `/accounts/[id]` in the app. Already partly possible (the View Online link goes to the report view), but a direct deep-link is nicer. Tiny.
 
-## Small carry-overs (still relevant)
+### Security / Hardening
 
-- [ ] Replace `README.md` (currently the create-next-app default) with project-specific setup instructions — env vars, scripts, branching model, deploy.
-- [ ] Set up CI in GitHub Actions running `npm run build` + `npm run lint` + `npm run typecheck` on PRs. Local builds + lint are already clean; CI just enforces.
+- **Rate-limit `/api/reports/[id]/unlock`.** Password unlock is the one guess-able endpoint in the app. Add a basic IP-based rate limiter (5 attempts per 10min). Without this, a determined attacker can brute-force the password.
+- **2FA for super-admins.** Supabase Auth supports TOTP. Make it required for any user in `super_admins`. Low effort if Supabase exposes a `require_mfa` flag we can flip.
+- **Project mutation audit log.** `scrape_runs` only captures scrapes. A second table `project_audit_log` would record account deletions, member adds/removes, report deletions, password changes. Lets you answer "who deleted that account?" — currently no path.
+- **Secret rotation runbook.** No documented procedure for rotating SMTP / Apify / CRON secrets. One short doc in `supabase/README.md` covering the steps + how to update the Vault secret used by pg_cron.
+- **CSP + security headers via `next.config.ts`.** None currently set. Cheap hardening — `frame-ancestors 'none'`, `strict-transport-security`, etc. ~15 lines.
+- **Verify Resend domain.** Currently invites send from `onboarding@resend.dev`. Once `exhale.studio` is verified in Resend, swap to `noreply@exhale.studio` for the from-address. Better deliverability + brand consistency. The change is one field in Supabase Studio → SMTP Settings.
 
-## Recovery work from pre-DB rounds (M-3c)
+### Data quality
 
-Things the early rounds had that the data-layer refactor dropped on the floor — recover, but on real DB-driven data this time.
+- **Detect deleted/private accounts.** If Apify returns zero items for an account 3 days in a row, mark the account as `status='stale'`. Surface a small warning on the account list. Tiny code change once we trust the audit.
+- **Posts.deleted_at column.** If a previously-scraped post stops appearing in Apify results for N days, soft-delete it. Right now deleted TikToks just sit in the DB indefinitely with old metrics. Medium lift.
+- **Health-score weighting revisit.** Earlier session flagged that the score didn't match intuition (high-volume / lower-ER accounts undervalued). The work-up I did then proposed a 4-axis model with log-scaled reach. Worth revisiting once the data quality issues above are sorted.
 
-- [ ] **`/reports/[id]/view` real data + PDF export.** The page is currently a stub. Restore: scoped accounts list, top-performer posts, per-category breakdown, computed health summary, "Export PDF" button (was wired via the browser's print pipeline in an earlier round). Honour `?historyId=` so history rows open the report at that send.
-- [ ] **Password protection on shared report views.** `reports.password_hash` column exists. Implement: bcrypt-hashed password set from Manage sheet; `/view` checks an HttpOnly cookie issued by a POST `/api/reports/[id]/unlock` endpoint; viewers without the cookie see a password gate matching the rest of the design.
-- [ ] **Full Apify JSON for caption mapping** (waiting on user). Captions return `(no caption)` for some accounts — likely the actor returns the body under a field we don't alias yet. Once we have a sample payload, add the right field to `mapApifyPost` in `src/lib/apify/tiktok.ts`. Vercel function logs print Object.keys when mapping bails wholesale — useful for partial successes.
-- [x] **Per-project health-config** *(M-3b.4 — landing now via PR #37)*. Migration `0002_health_config.sql`, defaults in `src/lib/data/health.ts`, UI in the Manage project sheet. *Migration applied to the live Supabase project on 2026-05-19 via MCP.*
+### Use-case extensions
 
-## Carry-overs from 2026-05-19 cron debug
+- **Instagram + YouTube support.** Apify has comparable scrapers. The architecture is already platform-agnostic at the DB layer (`accounts.platform`) — we'd add new actor configs, new mappers in `src/lib/apify/`, and a platform field on the Add Account sheet. Medium lift but high value if the user's actual workflow spans multiple platforms.
+- **Comparison reports.** "Q4 vs Q3" or "current month vs last month" as a dedicated report type. The data is there — just a different snapshot shape. Aligns with the project-tile MoM idea above.
+- **Public dashboard URL per project.** A read-only public-facing page showing top-level stats for a project. Useful for client-facing reporting without giving them an auth account. Lower priority but interesting.
 
-- [ ] **Multi-user / project sharing.** TODO.md previously locked us into single-owner. User wants invited viewers (read-only). Plan: new `project_members(project_id, user_id, role)` table where `role in ('viewer','editor')`; RLS policies on every project-scoped table expand to `owner_id = auth.uid() OR exists (select 1 from project_members where project_id = … and user_id = auth.uid())`; new "Manage team" sheet replaces the placeholder; invitations by email (magic-link signup if not yet a user). Separate branch / PR.
-- [x] **Report detail — restore "Total views" + "Engagement" metric tiles.** `src/components/report-detail.tsx` (Recent tab, around the `Average health` hero in `ReportRecent`) currently shows only the average-health tile and jumps straight to "Top 3 accounts". Earlier rounds had a 2-up (or 2×2) metric tile row underneath the hero: total views across scoped accounts in the report window, total engagement (likes + comments + shares) or engagement rate, and probably post count. Numbers all exist in scope already — `health.totalViews`, `health.totalLikes`, `health.totalComments`, `health.totalShares`, `health.postCount`, `health.engagementRate` are computed per-account by `computeAccountHealth` and just need aggregating across `withHealth` then rendering via the same `StatsGrid` / tile pattern used on `/dashboard`. Honour the report's date range from `health-config` (30d default).
+### Operational
 
-## Audit list — re-walk every PR from rounds A-M
+- **`scrape_runs` retention.** Table will grow without bound. Could archive runs older than 90d to JSONB in a `scrape_runs_archive` table. Worry about this around the 6-month mark.
+- **CI pipeline.** GitHub Actions running `npm run build` + `npm run lint` + `npm run typecheck` on every PR. Local builds are clean today, but a deploy-blocking gate is worth it.
+- **README rewrite.** Repo `README.md` is still the create-next-app default. Should describe setup steps, env vars, the trigger model, and link to `CLAUDE.md` / `SESSION_LOG.md` / `supabase/README.md`.
 
-User flagged that prior UI got lost during the DB swap. Items to audit and restore where appropriate:
+---
 
-- [ ] Round-by-round review of PRs #13 → #28 (pre-DB rounds) and the live-data rounds (#29-37). Restore anything that's still missing: dashboard hero variants, account chart configurations, report scope picker polish, etc.
+## Longer-term / Maybe never
 
-## Pre-existing context the next round will need
+Things that are interesting but not actionable without a clear business need.
 
-- **Placeholder data**: every page reads from `src/lib/placeholder-data.ts`. Records have stable IDs (`acc_01`–`acc_08`, `prj_01`–`prj_03`, `rep_01`–`rep_03`). One report (`rep_01`) has `password: "clientx"` for password-gate testing.
-- **Time series**: `accountTimeSeries(account, days)` generates deterministic 90-day series with mulberry32 seeded by `account.id` — keeps the charts stable across renders.
-- **Sheet kinds**: `addAccount | newReport | newProject | manageTeam | categories | tags | editAccount` (the last one carries an `accountId`). Defined in `src/components/shell-context.tsx` as a discriminated union.
+- **Billing / multi-tenant SaaS.** If AlertNetwork goes external, Stripe + per-org isolation + usage metering matter. Until then, single-tenant is right.
+- **Mobile native app.** The web app is already mobile-first (480px frame). Native would only help with push notifications.
+- **AI-driven insights.** Auto-generated commentary on the report ("Account X spiked 250% this week because of post Y"). Cool demo, marginal utility, and adds AI costs to every send. Pass for now.
+- **Real-time updates.** Supabase Realtime could push new posts to the dashboard as the cron writes them. Nice-to-have for a once-a-day workflow; only matters if scrapes become more frequent.
 
-## Done
+---
 
-(Everything from repo bootstrap through Round 6 — see the Status snapshot above and the merged PR list on GitHub.)
+## Notes for future-me
+
+- Anything that touches RLS or auth — read the relevant entry in `SESSION_LOG.md` first. The non-obvious decisions (RPC vs direct table reads, fail-open on auth callback, owner-explicit checks in service-role routes) have their context there.
+- New migrations: number them sequentially, apply via Supabase MCP if available, otherwise tell the user to paste into Studio. Always update `supabase/README.md` if the schema changes anything user-facing.
+- New API routes that use `supabaseAdmin()`: always add an explicit owner / super-admin check before the admin client. RLS doesn't gate service-role calls.
+- `CLAUDE.md` is canonical for "how to work in this repo". This file is the next-actions board. `SESSION_LOG.md` is the why behind the what.
