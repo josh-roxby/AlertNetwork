@@ -1,21 +1,13 @@
 import { ImageResponse } from "next/og";
 
-// Auto-generated app icon at 192×192.
-//
-// Two sizes are emitted for the PWA install criteria — Chrome /
-// Android require both ≥192px and ≥512px PNG icons listed in the
-// manifest. The 512 variant lives in icon2.tsx. Both are referenced
-// from src/app/manifest.ts.
-//
-// Rendered black-on-white for legibility in browser tabs (this file
-// also serves as the favicon) and on light home-screen backgrounds.
-// Geometry mirrors src/components/brand-mark.tsx — inlined because
-// ImageResponse's edge runtime can't run React hooks like useId.
+// Auto-generated app icon at 512×512 — the larger PWA install
+// variant. The 192 lives in icon.tsx. See that file for the why and
+// the geometry source-of-truth.
 
-export const size = { width: 192, height: 192 };
+export const size = { width: 512, height: 512 };
 export const contentType = "image/png";
 
-export default function Icon() {
+export default function Icon2() {
   return new ImageResponse(
     (
       <div
