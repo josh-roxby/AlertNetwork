@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
+import { BrandMark } from "@/components/brand-mark";
 import { useShell, useActiveProject } from "@/components/shell-context";
 import { useEscape, useScrollLock } from "@/components/overlay";
 import {
@@ -93,10 +94,7 @@ export function Drawer() {
             className="flex items-center gap-2 text-ink"
             style={{ fontFamily: "var(--font-unbounded)" }}
           >
-            <span
-              aria-hidden
-              className="inline-block h-2.5 w-2.5 rounded-full bg-accent"
-            />
+            <BrandMark size={22} className="text-accent" />
             <span className="t-h1 uppercase tracking-tight">Alert Network</span>
           </Link>
           <button

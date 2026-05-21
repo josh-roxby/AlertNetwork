@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useActiveProject, useShell } from "@/components/shell-context";
 import { paletteBg } from "@/lib/data/palette";
+import { BrandMark } from "@/components/brand-mark";
 import { InstallButton } from "@/components/install-button";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -85,10 +86,7 @@ export function DesktopShell({
           className="flex items-center gap-2 text-ink"
           style={{ fontFamily: "var(--font-unbounded)" }}
         >
-          <span
-            aria-hidden
-            className="inline-block h-2.5 w-2.5 rounded-full bg-accent"
-          />
+          <BrandMark size={22} className="text-accent" />
           <span className="t-h1 uppercase tracking-tight">Alert Network</span>
         </Link>
         <div className="min-w-0">
