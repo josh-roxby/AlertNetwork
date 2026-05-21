@@ -13,6 +13,7 @@ import {
   useShell,
 } from "@/components/shell-context";
 import { AddAccountSheet, TeamSheet } from "@/components/sheets";
+import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { NewReportSheet } from "@/components/sheets/new-report-sheet";
 import { CategoriesSheet } from "@/components/sheets/categories-sheet";
 import { TagsSheet } from "@/components/sheets/tags-sheet";
@@ -190,6 +191,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ShellProvider>
       <FrameInner>{children}</FrameInner>
+      <ServiceWorkerRegister />
     </ShellProvider>
   );
 }

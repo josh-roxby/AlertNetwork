@@ -5,7 +5,10 @@ import { ImageResponse } from "next/og";
 // square — don't double up on rounding.
 //
 // 180×180 is iOS's canonical size; Android uses /icon (the larger
-// 512×512 variant) instead so both home screens get a sharp render.
+// 192/512 variants emitted from icon.tsx) instead so both home
+// screens get a sharp render.
+//
+// Rendered black-on-white to match the favicon and PWA install icon.
 
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
@@ -17,13 +20,13 @@ export default function AppleIcon() {
         style={{
           width: "100%",
           height: "100%",
-          background: "#0A0A0A",
+          background: "#FFFFFF",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <BrandSvg fill="#FFFFFF" />
+        <BrandSvg fill="#0A0A0A" />
       </div>
     ),
     size,
