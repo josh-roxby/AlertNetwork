@@ -1,0 +1,89 @@
+<!--
+  Supabase "Invite user" email template — Alert Network branded.
+
+  Install by:
+    Supabase Studio → Authentication → Email Templates → "Invite
+    user" → paste the contents of this file into the message body.
+    Set subject to: You've been invited to Alert Network
+
+  Supabase populates these Go-template variables:
+    {{ .ConfirmationURL }}  — the magic-link sign-in URL (REQUIRED)
+    {{ .Email }}            — the invitee's email
+    {{ .SiteURL }}          — your configured site URL
+    {{ .Token }}            — 6-digit OTP (we don't use this)
+
+  Layout uses inline styles + table-based structure for Gmail /
+  Outlook / Apple Mail consistency — same approach as the report
+  email at src/lib/email/report-email.ts.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>You've been invited to Alert Network</title>
+</head>
+<body style="margin:0;padding:0;background:#FAFAFA;color:#0A0A0A;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">You've been invited to Alert Network — click the link to sign in.</div>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#FAFAFA;">
+  <tr><td align="center" style="padding:24px 12px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:560px;background:#FFFFFF;border:1px solid #E5E5E5;border-radius:12px;overflow:hidden;">
+
+      <!-- Header -->
+      <tr><td style="padding:24px 28px 16px 28px;border-bottom:1px solid #E5E5E5;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr>
+            <td style="font-size:11px;letter-spacing:0.18em;color:#737373;text-transform:uppercase;">Alert Network · Exhale Studios</td>
+          </tr>
+        </table>
+        <h1 style="margin:14px 0 0 0;font-size:24px;line-height:1.25;color:#0A0A0A;font-weight:800;">You've been invited</h1>
+        <p style="margin:8px 0 0 0;font-size:14px;line-height:1.55;color:#525252;">
+          You can now sign in to Alert Network, the TikTok account monitoring workspace by Exhale Studios.
+        </p>
+      </td></tr>
+
+      <!-- Body -->
+      <tr><td style="padding:24px 28px 8px 28px;">
+        <p style="margin:0 0 16px 0;font-size:14px;line-height:1.6;color:#0A0A0A;">
+          Click the button below to set up your account and sign in. The link will work once and expires in 24 hours.
+        </p>
+
+        <!-- CTA button -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 18px 0;">
+          <tr><td style="border-radius:8px;background:#FFD300;">
+            <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 26px;font-size:15px;font-weight:700;color:#0A0A0A;text-decoration:none;letter-spacing:0.01em;">
+              Accept invite &rarr;
+            </a>
+          </td></tr>
+        </table>
+
+        <p style="margin:0 0 4px 0;font-size:12px;color:#737373;">If the button doesn&rsquo;t open, paste this URL into your browser:</p>
+        <p style="margin:0;font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:#525252;word-break:break-all;">
+          {{ .ConfirmationURL }}
+        </p>
+      </td></tr>
+
+      <!-- What is this -->
+      <tr><td style="padding:20px 28px 0 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #E5E5E5;border-radius:8px;background:#F5F5F5;">
+          <tr><td style="padding:14px 16px;">
+            <div style="font-size:11px;letter-spacing:0.14em;color:#737373;text-transform:uppercase;font-weight:600;margin-bottom:6px;">What is Alert Network?</div>
+            <p style="margin:0;font-size:13px;line-height:1.55;color:#525252;">
+              A reporting tool for monitoring TikTok accounts — daily scrapes, health scores, and scheduled email reports. The owner has invited you so you can see the data they&rsquo;ve been collecting.
+            </p>
+          </td></tr>
+        </table>
+      </td></tr>
+
+      <!-- Footer -->
+      <tr><td style="padding:22px 28px 24px 28px;border-top:1px solid #E5E5E5;margin-top:16px;">
+        <p style="margin:0;font-size:11px;line-height:1.5;color:#A3A3A3;">
+          Sent by Alert Network · A product of Exhale Studios. If you weren&rsquo;t expecting this email, you can safely ignore it &mdash; the link won&rsquo;t do anything without your action.
+        </p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>

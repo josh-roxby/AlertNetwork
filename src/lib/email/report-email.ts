@@ -28,6 +28,10 @@ const ukDate = new Intl.DateTimeFormat("en-GB", {
 
 // Token palette — mirrors the app's globals.css light theme so the
 // email looks like a sibling of the in-app view. Inline-styles only.
+//
+// Accent stays the brand yellow (#FFD300 dark / #E5BE00 light). We
+// use the light-theme variant on the button so it has AA contrast
+// against the white surface — same rationale as the in-app token.
 const C = {
   bg: "#FAFAFA",
   surface: "#FFFFFF",
@@ -37,7 +41,7 @@ const C = {
   ink2: "#525252",
   ink3: "#737373",
   ink4: "#A3A3A3",
-  accent: "#FF6B35",
+  accent: "#FFD300",
   accentInk: "#0A0A0A",
   goodBg: "#DCFCE7",
   goodInk: "#15803D",
