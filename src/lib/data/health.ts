@@ -177,20 +177,25 @@ export const BAND_LABEL: Record<HealthBand, string> = {
   critical: "Critical",
 };
 
+// Health bands are intentionally NOT colour-coded. The numeric score
+// + the band label (Excellent / Strong / etc.) is enough signal; a
+// red/green wash makes the dashboard read as "everything is on fire"
+// at a glance. All band tokens render as neutral ink on the standard
+// surface — only the label text differs.
 export const BAND_TONE: Record<HealthBand, string> = {
-  excellent: "text-good",
+  excellent: "text-ink",
   strong: "text-ink",
-  watching: "text-ink-2",
-  weak: "text-accent",
-  critical: "text-bad",
+  watching: "text-ink",
+  weak: "text-ink",
+  critical: "text-ink",
 };
 
 export const BAND_BG: Record<HealthBand, string> = {
-  excellent: "bg-good-soft text-good",
+  excellent: "bg-surface-2 text-ink",
   strong: "bg-surface-2 text-ink",
-  watching: "bg-surface-3 text-ink-2",
-  weak: "bg-accent-soft text-accent",
-  critical: "bg-bad-soft text-bad",
+  watching: "bg-surface-2 text-ink",
+  weak: "bg-surface-2 text-ink",
+  critical: "bg-surface-2 text-ink",
 };
 
 function median(sortedAsc: number[]): number {

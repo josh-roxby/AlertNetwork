@@ -360,8 +360,11 @@ export function ReportDetail({ reportId }: { reportId: string }) {
           reportId={report.id}
           loading={historyLoading}
           rows={history}
-          onOpenManage={() =>
-            openSheet({ kind: "manageReport", reportId: report.id })
+          onOpenManage={
+            isOwner
+              ? () =>
+                  openSheet({ kind: "manageReport", reportId: report.id })
+              : undefined
           }
         />
       )}
@@ -370,8 +373,11 @@ export function ReportDetail({ reportId }: { reportId: string }) {
         <SettingsTab
           report={report}
           scopedCount={scopedIds?.length ?? 0}
-          onOpenManage={() =>
-            openSheet({ kind: "manageReport", reportId: report.id })
+          onOpenManage={
+            isOwner
+              ? () =>
+                  openSheet({ kind: "manageReport", reportId: report.id })
+              : undefined
           }
         />
       )}
@@ -460,17 +466,11 @@ function RecentTab({
             {
               label: "Avg health",
               value: covered > 0 ? String(avgHealth) : "—",
+              // Band stays neutral on purpose — only the label is
+              // surfaced. See BAND_BG comment in lib/data/health.ts.
               trend:
                 covered > 0
-                  ? {
-                      kind:
-                        avgBand === "excellent" || avgBand === "strong"
-                          ? "good"
-                          : avgBand === "weak" || avgBand === "critical"
-                            ? "bad"
-                            : "neutral",
-                      label: BAND_LABEL[avgBand],
-                    }
+                  ? { kind: "neutral", label: BAND_LABEL[avgBand] }
                   : null,
             },
             { label: `Posts (${windowDays}d)`, value: compactNumber(totalPosts) },
@@ -507,49 +507,6 @@ function RecentTab({
       />
 
       <section className="mb-5">
-        <h3 className="t-micro mb-2 px-1 text-ink-3">All by category</h3>
-        {byCategory.length === 0 ? (
-          <div className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-6 text-center t-small text-ink-3">
-            No accounts to group.
-          </div>
-        ) : (
-          <ul className="flex flex-col gap-4">
-            {byCategory.map((group) => (
-              <li key={group.id}>
-                <div className="mb-2 flex items-center gap-2 px-1">
-                  <span
-                    aria-hidden
-                    className={`inline-block h-2 w-2 rounded-full ${paletteBg(group.paletteId)}`}
-                  />
-                  <span className="t-small font-medium text-ink">
-                    {group.label}
-                  </span>
-                  <span
-                    className="t-meta text-ink-3"
-                    style={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
-                  >
-                    {group.accounts.length} account
-                    {group.accounts.length === 1 ? "" : "s"}
-                  </span>
-                </div>
-                <ul className="flex flex-col gap-1.5">
-                  {group.accounts.map(({ account, health, lastPostedAt }) => (
-                    <li key={account.id}>
-                      <AccountStatsBlock
-                        account={account}
-                        health={health}
-                        lastPostedAt={lastPostedAt}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section>
         <h3 className="t-micro mb-2 px-1 text-ink-3">Top 5 posts</h3>
         {topPosts.length === 0 ? (
           <div className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-8 text-center">
@@ -608,6 +565,49 @@ function RecentTab({
                 </li>
               );
             })}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <h3 className="t-micro mb-2 px-1 text-ink-3">All by category</h3>
+        {byCategory.length === 0 ? (
+          <div className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-6 text-center t-small text-ink-3">
+            No accounts to group.
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-4">
+            {byCategory.map((group) => (
+              <li key={group.id}>
+                <div className="mb-2 flex items-center gap-2 px-1">
+                  <span
+                    aria-hidden
+                    className={`inline-block h-2 w-2 rounded-full ${paletteBg(group.paletteId)}`}
+                  />
+                  <span className="t-small font-medium text-ink">
+                    {group.label}
+                  </span>
+                  <span
+                    className="t-meta text-ink-3"
+                    style={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
+                  >
+                    {group.accounts.length} account
+                    {group.accounts.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <ul className="flex flex-col gap-1.5">
+                  {group.accounts.map(({ account, health, lastPostedAt }) => (
+                    <li key={account.id}>
+                      <AccountStatsBlock
+                        account={account}
+                        health={health}
+                        lastPostedAt={lastPostedAt}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
           </ul>
         )}
       </section>
@@ -958,7 +958,7 @@ function HistoryTab({
   reportId: string;
   loading: boolean;
   rows: ReportHistoryRow[];
-  onOpenManage: () => void;
+  onOpenManage?: () => void;
 }) {
   if (loading) {
     return (
@@ -972,16 +972,19 @@ function HistoryTab({
       <div className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-8 text-center">
         <p className="t-body text-ink-2">No sends yet.</p>
         <p className="mx-auto mt-1 max-w-[40ch] t-small text-ink-3">
-          History appears here once the cron runs on the next scheduled day,
-          or after a manual run from Manage → Generate now.
+          {onOpenManage
+            ? "History appears here once the cron runs on the next scheduled day, or after a manual run from Manage → Generate now."
+            : "History appears here once the cron runs on the next scheduled day."}
         </p>
-        <button
-          type="button"
-          onClick={onOpenManage}
-          className="tap-btn mt-3 inline-flex items-center gap-2 rounded-sm border border-line-2 bg-surface-2 px-3 py-1.5 t-small font-medium text-ink hover:bg-surface-3"
-        >
-          Open manage
-        </button>
+        {onOpenManage && (
+          <button
+            type="button"
+            onClick={onOpenManage}
+            className="tap-btn mt-3 inline-flex items-center gap-2 rounded-sm border border-line-2 bg-surface-2 px-3 py-1.5 t-small font-medium text-ink hover:bg-surface-3"
+          >
+            Open manage
+          </button>
+        )}
       </div>
     );
   }
@@ -1035,7 +1038,7 @@ function SettingsTab({
 }: {
   report: ReportRow;
   scopedCount: number;
-  onOpenManage: () => void;
+  onOpenManage?: () => void;
 }) {
   return (
     <section className="rounded-md border border-line bg-surface">
@@ -1064,15 +1067,17 @@ function SettingsTab({
           report.last_sent_at ? relativeDate(report.last_sent_at) : "Not sent"
         }
       />
-      <div className="border-t border-line px-3 py-3">
-        <button
-          type="button"
-          onClick={onOpenManage}
-          className="tap-btn flex w-full items-center justify-center gap-2 rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
-        >
-          Edit in Manage
-        </button>
-      </div>
+      {onOpenManage && (
+        <div className="border-t border-line px-3 py-3">
+          <button
+            type="button"
+            onClick={onOpenManage}
+            className="tap-btn flex w-full items-center justify-center gap-2 rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
+          >
+            Edit in Manage
+          </button>
+        </div>
+      )}
     </section>
   );
 }

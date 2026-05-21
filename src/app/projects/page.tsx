@@ -1,16 +1,60 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useShell, useActiveProject } from "@/components/shell-context";
 import { relativeDate } from "@/lib/format";
 import { IconChevronRight, IconPlus } from "@/components/icons";
 import { SkeletonProjectList } from "@/components/skeletons";
+import { useAuthUser } from "@/lib/use-auth-user";
+import { supabaseBrowser } from "@/lib/supabase";
 
 export default function ProjectsPage() {
   const router = useRouter();
   const { setActiveProjectId, openSheet, projects, projectsLoading } =
     useShell();
   const active = useActiveProject();
+  const user = useAuthUser();
+
+  // Resolve "owner | viewer" per project for the current user. Owner
+  // comes off `projects.owner_id`; viewer rows come from
+  // project_members. Both are RLS-gated so we only see what we have
+  // access to anyway.
+  const [viewerProjectIds, setViewerProjectIds] = useState<Set<string>>(
+    new Set(),
+  );
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!user) {
+      setViewerProjectIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    const supabase = supabaseBrowser();
+    supabase
+      .from("project_members")
+      .select("project_id")
+      .eq("user_id", user.id)
+      .then(({ data }) => {
+        if (cancelled) return;
+        setViewerProjectIds(
+          new Set((data ?? []).map((r) => r.project_id as string)),
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  function roleFor(projectOwnerId: string, projectId: string):
+    | "owner"
+    | "viewer"
+    | null {
+    if (user && projectOwnerId === user.id) return "owner";
+    if (viewerProjectIds.has(projectId)) return "viewer";
+    return null;
+  }
 
   function switchTo(id: string) {
     setActiveProjectId(id);
@@ -77,6 +121,7 @@ export default function ProjectsPage() {
       <ul className="flex flex-col gap-2">
         {projects.map((p) => {
           const isActive = p.id === active?.id;
+          const role = roleFor(p.owner_id, p.id);
           return (
             <li key={p.id}>
               <button
@@ -96,12 +141,20 @@ export default function ProjectsPage() {
                   }`}
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
+                  <span className="flex flex-wrap items-center gap-2">
                     <span
                       className={`t-h1 ${isActive ? "text-accent" : "text-ink"}`}
                     >
                       {p.name}
                     </span>
+                    {role && (
+                      <span
+                        className="inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 text-ink-2"
+                        style={{ fontSize: 10, fontWeight: 700 }}
+                      >
+                        {role === "owner" ? "Owner" : "Viewer"}
+                      </span>
+                    )}
                     {isActive && (
                       <span
                         className="t-meta text-accent"

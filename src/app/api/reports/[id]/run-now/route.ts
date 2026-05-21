@@ -39,6 +39,22 @@ export async function POST(
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
+  // Owner-only — viewers can SELECT this report under RLS but the
+  // writes below run with service-role and would bypass that check.
+  // Explicit guard so viewers get a clean 403 instead of a silent
+  // mutation.
+  const { data: ownerCheck } = await supabase
+    .from("projects")
+    .select("owner_id")
+    .eq("id", report.project_id)
+    .maybeSingle();
+  if (!ownerCheck || ownerCheck.owner_id !== user.id) {
+    return NextResponse.json(
+      { error: "Only the project owner can run a report." },
+      { status: 403 },
+    );
+  }
+
   // Service role for the writes — keeps a single code path with the
   // cron route.
   const admin = supabaseAdmin();

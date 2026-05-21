@@ -48,11 +48,25 @@ export async function POST(
 
   const { data: report, error } = await supabase
     .from("reports")
-    .select("id, name, description")
+    .select("id, name, description, project_id")
     .eq("id", reportId)
     .maybeSingle();
   if (error || !report) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+
+  // Owner-only — the snapshot + send below run with service-role and
+  // would otherwise let a viewer trigger an email.
+  const { data: ownerCheck } = await supabase
+    .from("projects")
+    .select("owner_id")
+    .eq("id", report.project_id)
+    .maybeSingle();
+  if (!ownerCheck || ownerCheck.owner_id !== user.id) {
+    return NextResponse.json(
+      { error: "Only the project owner can send test emails." },
+      { status: 403 },
+    );
   }
 
   const appUrl =

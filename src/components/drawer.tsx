@@ -17,12 +17,20 @@ import {
 import { paletteBg } from "@/lib/data/palette";
 import { useAuthUser } from "@/lib/use-auth-user";
 
-const NAV = [
+type NavItem = {
+  href: string;
+  label: string;
+  Icon: typeof IconDashboard;
+  ownerOnly?: boolean;
+};
+
+const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", Icon: IconDashboard },
   { href: "/accounts", label: "Accounts", Icon: IconAccounts },
   { href: "/reports", label: "Reports", Icon: IconReports },
-  { href: "/settings", label: "Settings", Icon: IconSettings },
-] as const;
+  // Settings is owner-only.
+  { href: "/settings", label: "Settings", Icon: IconSettings, ownerOnly: true },
+];
 
 export function Drawer() {
   const {
@@ -32,7 +40,9 @@ export function Drawer() {
     accounts,
     projects,
     projectsLoading,
+    isOwner,
   } = useShell();
+  const navItems = NAV.filter((n) => !n.ownerOnly || isOwner);
   const hideNav = !projectsLoading && projects.length === 0;
   const pathname = usePathname();
   const project = useActiveProject();
@@ -121,7 +131,7 @@ export function Drawer() {
           <div className="mt-5">
             <div className="t-micro mb-2 px-1 text-ink-3">Workspace</div>
             <ul className="flex flex-col">
-              {NAV.map(({ href, label, Icon }) => {
+              {navItems.map(({ href, label, Icon }) => {
                 const active =
                   pathname === href || pathname.startsWith(href + "/");
                 return (
@@ -177,19 +187,6 @@ export function Drawer() {
                   </li>
                 ))}
               </ul>
-              <Link
-                href="/settings#tags-categories-section"
-                onClick={closeDrawer}
-                className="mt-3 flex w-full items-center justify-between rounded-sm border border-dashed border-line-2 px-3 py-2.5 text-ink-3 transition-colors duration-[120ms] hover:border-line-3 hover:text-ink"
-              >
-                <span
-                  className="t-meta"
-                  style={{ fontSize: 10, letterSpacing: "0.14em" }}
-                >
-                  Manage tags & categories
-                </span>
-                <span aria-hidden>→</span>
-              </Link>
             </div>
           )}
         </div>
