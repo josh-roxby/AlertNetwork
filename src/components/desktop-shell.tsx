@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useActiveProject, useShell } from "@/components/shell-context";
 import { paletteBg } from "@/lib/data/palette";
+import { InstallButton } from "@/components/install-button";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
@@ -114,6 +115,7 @@ export function DesktopShell({
               </span>
             </Link>
           )}
+          <InstallButton />
           <ThemeToggle />
           {!hideNav && <NotificationsMenu />}
           <span
