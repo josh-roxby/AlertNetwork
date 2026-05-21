@@ -43,6 +43,48 @@ The cron path (`/api/cron/daily`) needs to read every account across users to sc
 3. Optionally fill `granted_by` (your own user id) and `note`.
 4. The new super-admin can sign in even with zero projects and will see the "New project" button on first load.
 
+## Scheduled jobs
+
+There are three independent triggers that can fire the daily scrape and the daily reports cron. They run roughly in parallel; whichever lands first does the actual work, the others see a recent successful `scrape_runs` row and return `skipped`.
+
+| Trigger | Schedule | Source string |
+|---|---|---|
+| **Supabase pg_cron** (primary) | 08:15 / 08:30 UTC | `pg-cron` |
+| Vercel Cron (fallback) | 08:13 / 08:30 UTC | `vercel-cron` |
+| GitHub Actions (fallback) | 08:23 / 08:23 UTC | `github-actions` |
+
+**Setting up pg_cron** (one-time, after migrations 0008 and 0009 are applied):
+
+1. Supabase Studio → Project Settings → **Vault** → New secret. Name `CRON_SECRET`, value = same as your Vercel `CRON_SECRET` env var.
+2. Open `supabase/setup-pg-cron.sql`. Replace `YOUR-DOMAIN.vercel.app` with your production hostname.
+3. Paste into Supabase Studio → SQL Editor → Run.
+4. Verify: `select jobname, schedule from cron.job;` shows two `alertnetwork-*` rows.
+5. Optional smoke test (also documented in the file): manually `select net.http_post(...)` against `/api/cron/daily?source=pg-cron` and confirm a row lands in `scrape_runs`.
+
+To stop pg_cron from firing (e.g. while debugging): `select cron.unschedule('alertnetwork-daily-scrape');` and `select cron.unschedule('alertnetwork-daily-reports');`. The Vercel + GitHub triggers continue.
+
+**Audit table.** Every invocation of `/api/cron/daily`, `/api/cron/reports`, and `/api/scrape/tiktok-account` lands a row in `scrape_runs` (see `migrations/0008`). Quick triage queries:
+
+```sql
+-- Did the daily cron run today?
+select source, status, accounts_total, posts_written, started_at
+from public.scrape_runs
+where started_at::date = current_date
+  and route = '/api/cron/daily'
+order by started_at desc;
+
+-- Which trigger has been most reliable over the past week?
+select source, count(*) filter (where status = 'success') as ok,
+       count(*) filter (where status = 'skipped') as skipped,
+       count(*) filter (where status in ('failed', 'partial')) as bad
+from public.scrape_runs
+where started_at > now() - interval '7 days'
+  and route = '/api/cron/daily'
+group by source;
+```
+
+Browser visibility is super-admin only via the RLS policy on `scrape_runs`.
+
 ## Schema
 
 See `migrations/0001_init.sql` for the source of truth. Tables:

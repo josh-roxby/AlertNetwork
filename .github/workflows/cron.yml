@@ -64,14 +64,14 @@ jobs:
           CRON_SHARED_SECRET: ${{ secrets.CRON_SHARED_SECRET }}
         run: |
           set -euo pipefail
-          echo "POST ${APP_URL}/api/cron/daily"
+          echo "POST ${APP_URL}/api/cron/daily?source=github-actions"
           curl --fail-with-body \
             --silent --show-error \
             --max-time 300 \
             --request POST \
             --header "Authorization: Bearer ${CRON_SHARED_SECRET}" \
             --header "Content-Type: application/json" \
-            "${APP_URL}/api/cron/daily"
+            "${APP_URL}/api/cron/daily?source=github-actions"
           echo ""
 
       - name: Trigger report dispatch
@@ -81,7 +81,7 @@ jobs:
           CRON_SHARED_SECRET: ${{ secrets.CRON_SHARED_SECRET }}
         run: |
           set -euo pipefail
-          echo "POST ${APP_URL}/api/cron/reports"
+          echo "POST ${APP_URL}/api/cron/reports?source=github-actions"
           # The route checks the UTC date and only sends weekly reports
           # on Mondays and monthly reports on the 1st. Off-days it
           # returns a no-op summary, which is fine.
@@ -91,5 +91,5 @@ jobs:
             --request POST \
             --header "Authorization: Bearer ${CRON_SHARED_SECRET}" \
             --header "Content-Type: application/json" \
-            "${APP_URL}/api/cron/reports"
+            "${APP_URL}/api/cron/reports?source=github-actions"
           echo ""
