@@ -8,10 +8,13 @@ import {
   type ApifyTikTokPost,
 } from "@/lib/apify/tiktok";
 import { bumpAccountLastScraped, upsertPosts } from "@/lib/data/posts";
+import { finishScrapeRun, startScrapeRun } from "@/lib/data/scrape-runs";
 
 // Sync calls to the Apify TikTok actor can take up to ~60s for a full
 // user feed. Bump Vercel's serverless function limit to match.
 export const maxDuration = 60;
+
+const ROUTE = "/api/scrape/tiktok-account";
 
 type Body = {
   accountId?: string;
@@ -98,6 +101,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
+  // Audit. Source is "ui-rescan" for user-session calls, "manual"
+  // (curl with cron bearer) for service callers — those are
+  // typically diagnostic pings rather than a real cron path.
+  const runStartMs = Date.now();
+  const runId = await startScrapeRun(admin, {
+    source: isCron ? "manual" : "ui-rescan",
+    route: ROUTE,
+    notes: { accountId: account.id, windowHours },
+  });
+
   let scanned = 0;
   let mappedCount = 0;
   let writtenCount = 0;
@@ -138,6 +151,14 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "scrape failed";
     console.error(`[scrape] account=${account.id} failed: ${message}`);
+    await finishScrapeRun(admin, runId, {
+      status: "failed",
+      accountsTotal: 1,
+      apifyItems: scanned,
+      postsWritten: writtenCount,
+      errorMessage: message,
+      startedAt: runStartMs,
+    });
     return NextResponse.json(
       {
         error: message,
@@ -148,6 +169,17 @@ export async function POST(request: NextRequest) {
       { status: 502 },
     );
   }
+
+  await finishScrapeRun(admin, runId, {
+    status: writtenCount > 0 || scanned === 0 ? "success" : "partial",
+    accountsTotal: 1,
+    accountsOk: 1,
+    apifyItems: scanned,
+    postsWritten: writtenCount,
+    startedAt: runStartMs,
+    notes:
+      sampleKeys.length > 0 ? { mapper_keys: sampleKeys } : undefined,
+  });
 
   return NextResponse.json({
     scanned,

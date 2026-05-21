@@ -8,6 +8,12 @@ import {
 } from "@/lib/apify/tiktok";
 import { bumpAccountLastScraped, upsertPosts } from "@/lib/data/posts";
 import { isCronAuthorised } from "@/lib/cron-auth";
+import {
+  detectSource,
+  finishScrapeRun,
+  recentSuccessfulRun,
+  startScrapeRun,
+} from "@/lib/data/scrape-runs";
 
 // 5 minutes — enough for one batched Apify call covering ~100 accounts.
 // Hobby plan caps at 60s; this needs Pro or a self-hosted runner.
@@ -19,16 +25,21 @@ export const maxDuration = 300;
 const DEFAULT_WINDOW_HOURS = 168;
 const DEFAULT_MAX_ITEMS_PER_ACCOUNT = 50;
 
+// If a successful run has already landed in this many minutes, skip
+// the new invocation. Lets us run pg_cron + Vercel Cron + GitHub
+// Actions in parallel without paying for triplicated Apify scrapes.
+const DEDUP_WINDOW_MINUTES = 60;
+
+const ROUTE = "/api/cron/daily";
+
 // /api/cron/daily
 //
-// Triggered daily — primarily by Vercel Cron (GET — see vercel.json),
-// secondarily by the GitHub Actions workflow (POST — see
-// .github/workflows/cron.yml). Both auth via a shared bearer secret;
-// see src/lib/cron-auth.ts.
-//
-// Loops every account across every project (service-role read),
-// batches them into a single Apify run, then maps results back to
-// accounts by handle and upserts the per-account posts.
+// Triggered daily — by Postgres pg_cron (POST — see
+// supabase/setup-pg-cron.sql) AND optionally by Vercel Cron (GET —
+// see vercel.json) AND/OR GitHub Actions. Each invocation is
+// audited in `scrape_runs`. The first one to land does the work;
+// subsequent triggers within the dedup window return early as
+// 'skipped'.
 
 export async function GET(request: NextRequest) {
   return run(request);
@@ -44,13 +55,50 @@ async function run(request: NextRequest) {
   }
 
   const admin = supabaseAdmin();
+  const source = detectSource(request);
+  const startedAt = Date.now();
+
+  // Dedup — skip if a successful run for this route landed in the
+  // last hour. Audit the skip so we can see what triggered the
+  // duplicate.
+  const recent = await recentSuccessfulRun(admin, ROUTE, DEDUP_WINDOW_MINUTES);
+  if (recent) {
+    const runId = await startScrapeRun(admin, {
+      source,
+      route: ROUTE,
+      notes: { skipped_because: "recent_success", recent_started_at: recent },
+    });
+    await finishScrapeRun(admin, runId, {
+      status: "skipped",
+      startedAt,
+    });
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: "recent_success",
+      recentStartedAt: recent,
+    });
+  }
+
+  const runId = await startScrapeRun(admin, { source, route: ROUTE });
+
   const { data: accounts, error } = await admin
     .from("accounts")
     .select("id, url, handle, project_id");
   if (error) {
+    await finishScrapeRun(admin, runId, {
+      status: "failed",
+      errorMessage: error.message,
+      startedAt,
+    });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   if (!accounts || accounts.length === 0) {
+    await finishScrapeRun(admin, runId, {
+      status: "success",
+      accountsTotal: 0,
+      startedAt,
+    });
     return NextResponse.json({ totalAccounts: 0, results: [] });
   }
 
@@ -74,6 +122,12 @@ async function run(request: NextRequest) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Apify call failed";
+    await finishScrapeRun(admin, runId, {
+      status: "failed",
+      errorMessage: message,
+      accountsTotal: accounts.length,
+      startedAt,
+    });
     return NextResponse.json(
       { error: message, totalAccounts: accounts.length },
       { status: 502 },
@@ -102,6 +156,7 @@ async function run(request: NextRequest) {
   };
 
   const results: Result[] = [];
+  let totalWritten = 0;
   for (const account of accounts) {
     const bucket = buckets.get(account.id) ?? [];
     const within = filterByWindow(
@@ -111,6 +166,7 @@ async function run(request: NextRequest) {
     try {
       const { written } = await upsertPosts(admin, account.id, within);
       await bumpAccountLastScraped(admin, account.id);
+      totalWritten += written;
       results.push({
         accountId: account.id,
         handle: account.handle,
@@ -126,14 +182,42 @@ async function run(request: NextRequest) {
     }
   }
 
+  const successful = results.filter((r) => !r.error).length;
+  const failed = results.filter((r) => r.error).length;
+
   console.info(
-    `[cron/daily] accounts=${accounts.length} successful=${results.filter((r) => !r.error).length} failed=${results.filter((r) => r.error).length}`,
+    `[cron/daily] source=${source} accounts=${accounts.length} ok=${successful} failed=${failed} posts=${totalWritten}`,
   );
+
+  await finishScrapeRun(admin, runId, {
+    status:
+      failed === 0
+        ? "success"
+        : successful === 0
+          ? "failed"
+          : "partial",
+    accountsTotal: accounts.length,
+    accountsOk: successful,
+    postsWritten: totalWritten,
+    apifyItems: apifyPosts.length,
+    startedAt,
+    notes:
+      failed > 0
+        ? {
+            failed_accounts: results
+              .filter((r) => r.error)
+              .map((r) => ({ handle: r.handle, error: r.error })),
+          }
+        : undefined,
+  });
 
   return NextResponse.json({
     totalAccounts: accounts.length,
-    successful: results.filter((r) => !r.error).length,
-    failed: results.filter((r) => r.error).length,
+    successful,
+    failed,
+    postsWritten: totalWritten,
+    apifyItems: apifyPosts.length,
+    source,
     results,
   });
 }

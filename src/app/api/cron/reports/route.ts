@@ -4,8 +4,15 @@ import { isCronAuthorised } from "@/lib/cron-auth";
 import { buildReportSnapshot } from "@/lib/data/report-snapshot";
 import { renderReportEmail } from "@/lib/email/report-email";
 import { sendMail } from "@/lib/email/transport";
+import {
+  detectSource,
+  finishScrapeRun,
+  startScrapeRun,
+} from "@/lib/data/scrape-runs";
 
 export const maxDuration = 60;
+
+const ROUTE = "/api/cron/reports";
 
 // /api/cron/reports
 //
@@ -50,11 +57,27 @@ async function run(request: NextRequest) {
   const isFirstOfMonth = now.getUTCDate() === 1;
 
   const admin = supabaseAdmin();
+  const source = detectSource(request);
+  const runStartMs = Date.now();
+  const runId = await startScrapeRun(admin, {
+    source,
+    route: ROUTE,
+    notes: {
+      force: body.force ?? false,
+      dryRun: body.dryRun ?? false,
+    },
+  });
+
   const { data: reports, error } = await admin
     .from("reports")
     .select("id, name, description, cadence, status, project_id")
     .eq("status", "active");
   if (error) {
+    await finishScrapeRun(admin, runId, {
+      status: "failed",
+      errorMessage: error.message,
+      startedAt: runStartMs,
+    });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -215,14 +238,34 @@ async function run(request: NextRequest) {
     }
   }
 
+  const sentCount = results.filter((r) => r.sent).length;
+  const failedCount = results.filter((r) => r.error).length;
+  await finishScrapeRun(admin, runId, {
+    status:
+      failedCount === 0
+        ? "success"
+        : sentCount === 0
+          ? "failed"
+          : "partial",
+    accountsTotal: reports?.length ?? 0,
+    accountsOk: sentCount,
+    startedAt: runStartMs,
+    notes: {
+      isMonday,
+      isFirstOfMonth,
+      skipped: results.filter((r) => r.skipped).length,
+    },
+  });
+
   return NextResponse.json({
     runAt: now.toISOString(),
     isMonday,
     isFirstOfMonth,
     totalReports: reports?.length ?? 0,
-    sent: results.filter((r) => r.sent).length,
+    sent: sentCount,
     skipped: results.filter((r) => r.skipped).length,
-    failed: results.filter((r) => r.error).length,
+    failed: failedCount,
+    source,
     results,
   });
 }
