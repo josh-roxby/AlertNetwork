@@ -333,10 +333,19 @@ type MemberRowFromApi = {
   id: string;
   project_id: string;
   user_id: string;
-  role: "viewer";
+  role: "viewer" | "manager";
   invited_email: string;
   invited_at: string;
   display_email: string;
+};
+
+type InviteRole = "viewer" | "manager";
+
+const ROLE_DESCRIPTION: Record<InviteRole, string> = {
+  viewer:
+    "Read-only access to dashboard, accounts and report views.",
+  manager:
+    "Read + add/edit accounts and reports. Cannot invite members, generate reports, or change project settings.",
 };
 
 export function TeamSheet({
@@ -353,6 +362,7 @@ export function TeamSheet({
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [email, setEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<InviteRole>("viewer");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -400,7 +410,7 @@ export function TeamSheet({
       const res = await fetch(`/api/projects/${activeProjectId}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed }),
+        body: JSON.stringify({ email: trimmed, role: inviteRole }),
       });
       const body = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -461,6 +471,38 @@ export function TeamSheet({
     }
   }
 
+  async function handleRoleChange(
+    memberId: string,
+    nextRole: InviteRole,
+    displayEmail: string,
+  ) {
+    if (!activeProjectId) return;
+    setBusy(memberId);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await fetch(
+        `/api/projects/${activeProjectId}/members/${memberId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: nextRole }),
+        },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(body.error ?? "Failed to update role.");
+        return;
+      }
+      setMembers((prev) =>
+        prev.map((m) => (m.id === memberId ? { ...m, role: nextRole } : m)),
+      );
+      setNotice(`${displayEmail} is now a ${nextRole}.`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <Sheet
       open={open}
@@ -495,10 +537,20 @@ export function TeamSheet({
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="viewer@example.com"
+              placeholder="user@example.com"
               disabled={busy === "invite"}
               className="h-10 flex-1 rounded-sm border border-line-2 bg-surface-2 px-3 t-body text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none disabled:opacity-60"
             />
+            <select
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as InviteRole)}
+              disabled={busy === "invite"}
+              aria-label="Role"
+              className="h-10 rounded-sm border border-line-2 bg-surface-2 px-2 t-body text-ink focus:border-accent focus:outline-none disabled:opacity-60"
+            >
+              <option value="viewer">Viewer</option>
+              <option value="manager">Manager</option>
+            </select>
             <button
               type="submit"
               disabled={busy === "invite" || !email.trim()}
@@ -508,9 +560,8 @@ export function TeamSheet({
             </button>
           </div>
           <p className="t-meta text-ink-4" style={{ fontSize: 10 }}>
-            They&apos;ll get a magic-link sign-in email. Viewers can see the
-            dashboard, accounts and report views — they can&apos;t add accounts
-            or change settings.
+            {ROLE_DESCRIPTION[inviteRole]} They&apos;ll get a magic-link
+            sign-in email.
           </p>
         </form>
       )}
@@ -578,12 +629,31 @@ export function TeamSheet({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <span
-                className="inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 text-ink-2"
-                style={{ fontSize: 10, fontWeight: 700 }}
-              >
-                Viewer
-              </span>
+              {isOwner ? (
+                <select
+                  value={m.role}
+                  onChange={(e) =>
+                    handleRoleChange(
+                      m.id,
+                      e.target.value as InviteRole,
+                      m.display_email,
+                    )
+                  }
+                  disabled={busy === m.id}
+                  aria-label={`Role for ${m.display_email}`}
+                  className="h-7 rounded-sm border border-line-2 bg-surface-2 px-1.5 t-small text-ink-2 focus:border-accent focus:outline-none disabled:opacity-60"
+                >
+                  <option value="viewer">Viewer</option>
+                  <option value="manager">Manager</option>
+                </select>
+              ) : (
+                <span
+                  className="inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 text-ink-2"
+                  style={{ fontSize: 10, fontWeight: 700 }}
+                >
+                  {m.role === "manager" ? "Manager" : "Viewer"}
+                </span>
+              )}
               {isOwner && (
                 <button
                   type="button"
@@ -601,7 +671,7 @@ export function TeamSheet({
           <li
             className="rounded-sm border border-dashed border-line-2 bg-surface px-3 py-4 text-center t-small text-ink-3"
           >
-            No viewers yet.{isOwner ? " Invite one above." : ""}
+            No members yet.{isOwner ? " Invite one above." : ""}
           </li>
         )}
       </ul>

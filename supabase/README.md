@@ -17,16 +17,18 @@ Schema and migrations for the AlertNetwork Postgres database.
 
 ## Tenancy model
 
-**Three concentric tiers, enforced by RLS:**
+**Four concentric tiers, enforced by RLS:**
 
-1. **Super admin** — listed in `super_admins`. Only super admins can `INSERT` into `projects`. There's no UI to grant super-admin status; you manage the table yourself from the Supabase Studio Table Editor. `is_super_admin()` is the SQL helper, also exposed to the browser via the `super_admins` SELECT policy (each user can see their own row, so the UI can tell whether to render the "New project" button).
-2. **Project owner** — `projects.owner_id`. Mutates everything inside a project (accounts, reports, recipients, categories, tags, etc.). The owner of a project is always the super-admin who created it.
-3. **Project viewer** — row in `project_members` with `role = 'viewer'`. Read-only access to the project's accounts, posts, reports and their history. Invited by the project owner via Settings → Team & access.
+1. **Super admin** — listed in `super_admins`. Only super admins can `INSERT` into `projects`. There's no UI to grant super-admin status; you manage the table yourself from the Supabase Studio Table Editor. `is_super_admin()` is the SQL helper, also exposed to the browser via an RPC (SECURITY DEFINER, no RLS dependency).
+2. **Project owner** — `projects.owner_id`. Mutates everything inside a project (accounts, reports, recipients, categories, tags, members, generate-now). The owner of a project is always the super-admin who created it.
+3. **Project manager** — row in `project_members` with `role = 'manager'`. Can read everything in the project AND add/edit/delete accounts, reports, categories, tags, and report recipients. Cannot create projects, invite or change members, generate reports on demand, send test emails, change report passwords, or change project-wide health-config.
+4. **Project viewer** — row in `project_members` with `role = 'viewer'`. Read-only access to the project's accounts, posts, reports and report history.
 
-Two SQL helper functions back the RLS policies:
+Three SQL helper functions back the RLS policies:
 
-- `is_project_member(project_id)` — owner OR viewer; gates every SELECT policy on project-scoped tables.
-- `is_project_owner(project_id)` — strict owner check; gates every INSERT/UPDATE/DELETE policy on project-scoped tables.
+- `is_project_member(project_id)` — owner OR manager OR viewer; gates every SELECT policy on project-scoped tables.
+- `can_manage_project(project_id)` — owner OR manager; gates the INSERT/UPDATE/DELETE policies that managers can perform (accounts, reports, categories, tags, report join tables).
+- `is_project_owner(project_id)` — strict owner check; gates the writes that only the owner should do (project_members add/remove, report_history mutations, password sets).
 
 **Inviting a viewer** uses Supabase's `auth.admin.inviteUserByEmail` (server-side, via the service role) which both creates the `auth.users` row and emails a magic-link, then inserts a `project_members` row tying the new user to the project as a viewer.
 

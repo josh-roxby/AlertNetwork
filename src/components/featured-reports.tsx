@@ -23,7 +23,7 @@ const STATUS_DOT: Record<string, string> = {
 //   - reports exist but none flagged is_featured → prompt to favourite
 //   - featured reports exist → render them as cards
 export function FeaturedReports({ max = 3 }: { max?: number }) {
-  const { reports, reportsLoading, openSheet, isOwner } = useShell();
+  const { reports, reportsLoading, openSheet, canManage } = useShell();
 
   if (reportsLoading) return null;
 
@@ -34,11 +34,11 @@ export function FeaturedReports({ max = 3 }: { max?: number }) {
         <div className="rounded-md border border-dashed border-line-2 bg-surface px-4 py-5 text-center">
           <p className="t-body text-ink-2">No reports yet.</p>
           <p className="mx-auto mt-1 max-w-[38ch] t-small text-ink-3">
-            {isOwner
+            {canManage
               ? "Create one to schedule a weekly or monthly summary."
               : "The project owner hasn't created any yet."}
           </p>
-          {isOwner && (
+          {canManage && (
             <button
               type="button"
               onClick={() => openSheet({ kind: "newReport" })}

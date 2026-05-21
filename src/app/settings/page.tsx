@@ -7,7 +7,8 @@ import { resolveHealthConfig } from "@/lib/data/health";
 import { useAuthUser } from "@/lib/use-auth-user";
 
 export default function SettingsPage() {
-  const { openSheet, categories, tags, accounts, isOwner } = useShell();
+  const { openSheet, categories, tags, accounts, isOwner, canManage } =
+    useShell();
   const project = useActiveProject();
   const user = useAuthUser();
   const healthConfig = resolveHealthConfig(project?.health_config ?? null);
@@ -94,13 +95,13 @@ export default function SettingsPage() {
           kind="value"
           label="Categories"
           value={categories.length.toString()}
-          onClick={isOwner ? () => openSheet({ kind: "categories" }) : undefined}
+          onClick={canManage ? () => openSheet({ kind: "categories" }) : undefined}
         />
         <SettingsRow
           kind="value"
           label="Project tags"
           value={tags.length.toString()}
-          onClick={isOwner ? () => openSheet({ kind: "tags" }) : undefined}
+          onClick={canManage ? () => openSheet({ kind: "tags" }) : undefined}
         />
       </SettingsSection>
 

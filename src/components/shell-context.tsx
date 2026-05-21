@@ -66,6 +66,12 @@ type ShellContextValue = {
   // controls; "owner" gets everything.
   currentRole: ProjectRoleForUser;
   isOwner: boolean;
+  // True when the caller can mutate project contents — owner OR
+  // manager. Gates add-account, edit-account, rescan, new-report,
+  // category/tag edits, etc. Owner-only actions (invite members,
+  // generate-now, send-test, change password, health config) keep
+  // checking `isOwner`.
+  canManage: boolean;
   // True when the caller appears in `super_admins`. Drives the "New
   // project" affordance — only super-admins can create projects.
   isSuperAdmin: boolean;
@@ -361,6 +367,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
   const closeSheet = useCallback(() => setSheet(null), []);
 
   const isOwner = currentRole === "owner";
+  const canManage = currentRole === "owner" || currentRole === "manager";
 
   const value = useMemo<ShellContextValue>(
     () => ({
@@ -382,6 +389,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       postsByAccount,
       currentRole,
       isOwner,
+      canManage,
       isSuperAdmin,
       openDrawer,
       closeDrawer,
@@ -414,6 +422,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       postsByAccount,
       currentRole,
       isOwner,
+      canManage,
       isSuperAdmin,
       openDrawer,
       closeDrawer,
