@@ -38,14 +38,26 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // RLS confirms the caller owns the report.
+  // RLS now lets viewers SELECT reports too, so verify the caller is
+  // the project owner before mutating the password hash via admin.
   const { data: report, error: ownErr } = await supabase
     .from("reports")
-    .select("id")
+    .select("id, project_id")
     .eq("id", reportId)
     .maybeSingle();
   if (ownErr || !report) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+  const { data: ownerCheck } = await supabase
+    .from("projects")
+    .select("owner_id")
+    .eq("id", report.project_id)
+    .maybeSingle();
+  if (!ownerCheck || ownerCheck.owner_id !== user.id) {
+    return NextResponse.json(
+      { error: "Only the project owner can change the report password." },
+      { status: 403 },
+    );
   }
 
   // Clear password

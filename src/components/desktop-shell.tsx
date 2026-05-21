@@ -8,7 +8,6 @@ import { NotificationsMenu } from "@/components/notifications-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
   IconAccounts,
-  IconChevronRight,
   IconDashboard,
   IconReports,
   IconSettings,
@@ -16,12 +15,20 @@ import {
 } from "@/components/icons";
 import { useAuthUser } from "@/lib/use-auth-user";
 
-const NAV = [
+type NavItem = {
+  href: string;
+  label: string;
+  Icon: typeof IconDashboard;
+  ownerOnly?: boolean;
+};
+
+const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", Icon: IconDashboard },
   { href: "/accounts", label: "Accounts", Icon: IconAccounts },
   { href: "/reports", label: "Reports", Icon: IconReports },
-  { href: "/settings", label: "Settings", Icon: IconSettings },
-] as const;
+  // Settings is owner-only.
+  { href: "/settings", label: "Settings", Icon: IconSettings, ownerOnly: true },
+];
 
 /**
  * Desktop shell — visible only at `lg:` and up. Renders a top bar with
@@ -50,7 +57,8 @@ export function DesktopShell({
 }) {
   const pathname = usePathname();
   const project = useActiveProject();
-  const { categories, accounts } = useShell();
+  const { categories, accounts, isOwner } = useShell();
+  const navItems = NAV.filter((n) => !n.ownerOnly || isOwner);
   const user = useAuthUser();
   const email = user?.email ?? "—";
   const initial = email[0]?.toUpperCase() ?? "?";
@@ -124,7 +132,7 @@ export function DesktopShell({
             <nav className="flex-1 overflow-y-auto px-3 py-4">
             <div className="t-micro mb-2 px-2 text-ink-3">Workspace</div>
             <ul className="flex flex-col gap-0.5">
-              {NAV.map(({ href, label, Icon }) => {
+              {navItems.map(({ href, label, Icon }) => {
                 const active =
                   pathname === href || pathname.startsWith(href + "/");
                 return (
@@ -181,18 +189,6 @@ export function DesktopShell({
               </>
             )}
 
-            <Link
-              href="/settings#tags-categories-section"
-              className="mt-3 flex w-full items-center justify-between rounded-sm border border-dashed border-line-2 px-3 py-2.5 text-ink-3 transition-colors duration-[120ms] hover:border-line-3 hover:text-ink"
-            >
-              <span
-                className="t-meta"
-                style={{ fontSize: 10, letterSpacing: "0.14em" }}
-              >
-                Manage tags &amp; categories
-              </span>
-              <IconChevronRight />
-            </Link>
           </nav>
           )}
           {hideNav && <div className="flex-1" />}

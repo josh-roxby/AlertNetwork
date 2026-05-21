@@ -8,16 +8,27 @@ import {
   IconReports,
   IconSettings,
 } from "@/components/icons";
+import { useShell } from "@/components/shell-context";
 
-const NAV = [
+type NavItem = {
+  href: string;
+  label: string;
+  Icon: typeof IconDashboard;
+  ownerOnly?: boolean;
+};
+
+const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", Icon: IconDashboard },
   { href: "/accounts", label: "Accounts", Icon: IconAccounts },
   { href: "/reports", label: "Reports", Icon: IconReports },
-  { href: "/settings", label: "Settings", Icon: IconSettings },
-] as const;
+  // Settings is owner-only — viewers don't have anything to configure.
+  { href: "/settings", label: "Settings", Icon: IconSettings, ownerOnly: true },
+];
 
 export function FloatNav() {
   const pathname = usePathname();
+  const { isOwner } = useShell();
+  const visible = NAV.filter((n) => !n.ownerOnly || isOwner);
 
   return (
     <nav
@@ -25,7 +36,7 @@ export function FloatNav() {
       className="absolute z-[var(--z-tabbar)] flex items-center gap-0.5 rounded-sm border border-line-2 bg-surface p-1 shadow-[var(--sh-nav)] lg:hidden"
       style={{ bottom: 12, left: 12 }}
     >
-      {NAV.map(({ href, label, Icon }) => {
+      {visible.map(({ href, label, Icon }) => {
         const active = pathname === href || pathname.startsWith(href + "/");
         return (
           <Link

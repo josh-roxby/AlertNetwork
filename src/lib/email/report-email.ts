@@ -240,7 +240,7 @@ function renderHtml(
 // Mode equivalent ("Top") / Last Post). Inspired by the screenshot
 // layout but kept in our visual language.
 function renderAccountBlock(a: SnapshotAccount): string {
-  const bandTone = bandStyle(a.health.band);
+  const bandTone = bandStyle();
   const meanViews =
     a.mean_views ??
     (a.health.postCount > 0
@@ -406,16 +406,13 @@ function deltaTone(dir: "up" | "down" | "flat"): { bg: string; ink: string } {
   return { bg: C.neutralBg, ink: C.neutralInk };
 }
 
-function bandStyle(band: ReportSnapshotV1["totals"]["avg_band"]): {
-  bg: string;
-  ink: string;
-} {
-  if (band === "excellent" || band === "strong") {
-    return { bg: C.goodBg, ink: C.goodInk };
-  }
-  if (band === "weak" || band === "critical") {
-    return { bg: C.badBg, ink: C.badInk };
-  }
+// Health pills are intentionally NOT colour-coded — same rationale as
+// BAND_BG in src/lib/data/health.ts. The score number + label carry
+// enough signal; tinting them green/red turns the email into a
+// stoplight that's hard to read at a glance. Period-over-period
+// deltas still use deltaTone() for ▲/▼ — that's separate from
+// health-band tinting.
+function bandStyle(): { bg: string; ink: string } {
   return { bg: C.neutralBg, ink: C.neutralInk };
 }
 

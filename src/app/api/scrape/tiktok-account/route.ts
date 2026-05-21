@@ -65,13 +65,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
-    const { data: owned, error: ownError } = await supabase
+    // Verify the caller is the project owner — RLS now lets viewers
+    // SELECT accounts too, and the scrape below runs with service-role
+    // so we need an explicit owner check before triggering a write.
+    const { data: ownership, error: ownError } = await supabase
       .from("accounts")
-      .select("id")
+      .select("id, projects!inner(owner_id)")
       .eq("id", body.accountId)
       .maybeSingle();
-    if (ownError || !owned) {
+    if (ownError || !ownership) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+    const ownerId = (
+      ownership as unknown as { projects: { owner_id: string } }
+    ).projects.owner_id;
+    if (ownerId !== user.id) {
+      return NextResponse.json(
+        { error: "Only the project owner can trigger a scrape." },
+        { status: 403 },
+      );
     }
   }
 
