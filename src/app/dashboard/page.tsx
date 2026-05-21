@@ -21,11 +21,17 @@ import {
   computeAccountHealth,
   type HealthBand,
 } from "@/lib/data/health";
-import { compactNumber, relativeDate } from "@/lib/format";
+import { compactNumber, percent, relativeDate } from "@/lib/format";
 import type { AccountView, PostRow } from "@/lib/data/types";
 
 type DashboardFilter = "all" | HealthBand | "movers";
+type ViewsWindow = "all" | "30d" | "7d";
 const MOVER_THRESHOLD = 20;
+const VIEWS_WINDOW_LABEL: Record<ViewsWindow, string> = {
+  all: "All time",
+  "30d": "30 days",
+  "7d": "7 days",
+};
 
 export default function DashboardPage() {
   const {
@@ -33,7 +39,6 @@ export default function DashboardPage() {
     categories,
     accounts,
     accountsLoading,
-    reports,
     posts,
     postsByAccount,
     openSheet,
@@ -47,6 +52,7 @@ export default function DashboardPage() {
   } = useShell();
   const project = useActiveProject();
   const [filter, setFilter] = useState<DashboardFilter>("all");
+  const [viewsWindow, setViewsWindow] = useState<ViewsWindow>("all");
 
   // Compute per-account health once per posts change.
   const accountHealths = useMemo(() => {
@@ -60,6 +66,15 @@ export default function DashboardPage() {
     }
     return map;
   }, [accounts, postsByAccount, project?.health_config]);
+
+  // Post aggregates. Computation is hoisted into a top-level helper
+  // (computePostAggregates) so the Date.now() call lives outside the
+  // component — React's purity rule otherwise rejects calls to
+  // non-deterministic functions during render.
+  const postAggregates = useMemo(
+    () => computePostAggregates(posts),
+    [posts],
+  );
 
   // Top by health (with views as tiebreaker). Computed unconditionally
   // so hook order stays stable through the conditional returns below.
@@ -156,7 +171,16 @@ export default function DashboardPage() {
   }
 
   // Aggregate stats.
-  const totalViews = posts.reduce((s, p) => s + p.views, 0);
+  // Views windowed by user-selected range. All-time is the running
+  // sum; 30d / 7d filter on posted_at so we report reach over the
+  // window, not just the latest scrape. Engagement-rate is always
+  // computed over all posts — a small per-window ER would swing too
+  // wildly on low-volume accounts to be meaningful in a tile.
+  const { viewsAll, views30, views7, totalEngagement } = postAggregates;
+  const viewsForWindow =
+    viewsWindow === "all" ? viewsAll : viewsWindow === "30d" ? views30 : views7;
+  const avgER = viewsAll > 0 ? totalEngagement / viewsAll : 0;
+
   const healthScores = Array.from(accountHealths.values())
     .filter((h) => h.postCount > 0)
     .map((h) => h.healthScore);
@@ -182,33 +206,42 @@ export default function DashboardPage() {
     if (!latest || a.last_scraped_at > latest) return a.last_scraped_at;
     return latest;
   }, null);
-  const liveReports = reports.filter((r) => r.status === "active").length;
 
-  // 2x3 grid: Views ↔ Accounts swapped per request so the headline
-  // metric (reach) sits in the top-left and account count drops to
-  // the bottom-right utility slot.
+  // 2x3 grid pairs:
+  //   1. Views (windowed via dropdown) · Avg ER (all time)
+  //   2. Avg health · Movers
+  //   3. Categories · Accounts
+  // Live-reports tile was removed — featured reports below already
+  // surface report state, and most projects only ever have 1-2
+  // active reports anyway.
   const grid: Stat[] = [
     {
-      label: "Views (30d)",
-      value: totalViews > 0 ? compactNumber(totalViews) : "—",
+      label: "Views",
+      labelEl: (
+        <ViewsWindowSelect value={viewsWindow} onChange={setViewsWindow} />
+      ),
+      value: viewsForWindow > 0 ? compactNumber(viewsForWindow) : "—",
+    },
+    {
+      label: "Avg ER",
+      value: viewsAll > 0 ? percent(avgER, 1) : "—",
+      trend: viewsAll > 0
+        ? { kind: "neutral", label: "all time" }
+        : undefined,
     },
     {
       label: "Avg health",
       value: healthScores.length > 0 ? avgHealth.toString() : "—",
       trend: healthScores.length > 0
-        ? {
-            kind: "neutral",
-            label: `${healthScores.length} scored`,
-          }
+        ? { kind: "neutral", label: `${healthScores.length} scored` }
         : undefined,
     },
-    { label: "Categories", value: categories.length.toString() },
-    { label: "Live reports", value: liveReports.toString() },
     {
       label: "Movers",
       value: moversCount.toString(),
       trend: { kind: "neutral", label: `±${MOVER_THRESHOLD}%` },
     },
+    { label: "Categories", value: categories.length.toString() },
     { label: "Accounts", value: accounts.length.toString() },
   ];
 
@@ -339,6 +372,55 @@ export default function DashboardPage() {
         </p>
       )}
     </>
+  );
+}
+
+// Project-wide post aggregates. Returned in one shape so the
+// component reads them off a single memoised value. Kept out of the
+// component so calling Date.now() doesn't trip React's purity rule.
+function computePostAggregates(posts: PostRow[]) {
+  const now = Date.now();
+  const cutoff30 = now - 30 * 86400_000;
+  const cutoff7 = now - 7 * 86400_000;
+  let viewsAll = 0;
+  let views30 = 0;
+  let views7 = 0;
+  let totalEngagement = 0;
+  for (const p of posts) {
+    viewsAll += p.views;
+    totalEngagement += p.likes + p.comments + p.shares;
+    const t = new Date(p.posted_at).getTime();
+    if (t >= cutoff30) views30 += p.views;
+    if (t >= cutoff7) views7 += p.views;
+  }
+  return { viewsAll, views30, views7, totalEngagement };
+}
+
+// Inline dropdown that re-uses the t-micro label slot in the views
+// tile. Native <select> keeps the keyboard / screen-reader behaviour
+// for free; the OS-rendered chevron doubles as the affordance hint.
+// Padding-right gives the chevron room without clipping the text.
+function ViewsWindowSelect({
+  value,
+  onChange,
+}: {
+  value: ViewsWindow;
+  onChange: (next: ViewsWindow) => void;
+}) {
+  return (
+    <label className="inline-flex items-center gap-1 text-ink-3">
+      <span>Views ·</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as ViewsWindow)}
+        aria-label="Views window"
+        className="cursor-pointer bg-transparent text-ink-3 outline-none hover:text-ink focus-visible:text-ink"
+      >
+        <option value="all">{VIEWS_WINDOW_LABEL.all}</option>
+        <option value="30d">{VIEWS_WINDOW_LABEL["30d"]}</option>
+        <option value="7d">{VIEWS_WINDOW_LABEL["7d"]}</option>
+      </select>
+    </label>
   );
 }
 
