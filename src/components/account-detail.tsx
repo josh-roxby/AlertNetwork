@@ -31,6 +31,7 @@ import {
   ChartTooltip,
   X_AXIS,
   Y_AXIS,
+  useChartDrill,
 } from "@/components/charts";
 import { SkeletonAccountDetail } from "@/components/skeletons";
 import { TabNav } from "@/components/tab-nav";
@@ -326,6 +327,11 @@ function ChartsPanel({
     [posts, range],
   );
 
+  // Click a chart node → opens a Sheet listing every post posted on
+  // that day for this account. Single-account scope so no
+  // accountById lookup needed.
+  const drill = useChartDrill({ posts });
+
   const hasAny = posts.length > 0;
 
   return (
@@ -351,7 +357,7 @@ function ChartsPanel({
             valueLabel={`total · ${range}`}
             chart={
               <ResponsiveContainer width="100%" height={150}>
-                <AreaChart data={series} margin={CHART_MARGIN}>
+                <AreaChart data={series} margin={CHART_MARGIN} onClick={drill.onChartClick}>
                   <defs>
                     <linearGradient id="views-fill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.32} />
@@ -387,7 +393,7 @@ function ChartsPanel({
             valueLabel="avg per day"
             chart={
               <ResponsiveContainer width="100%" height={150}>
-                <LineChart data={series} margin={CHART_MARGIN}>
+                <LineChart data={series} margin={CHART_MARGIN} onClick={drill.onChartClick}>
                   <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
                   <XAxis {...X_AXIS} />
                   <YAxis
@@ -418,7 +424,7 @@ function ChartsPanel({
             valueLabel={`total · ${range}`}
             chart={
               <ResponsiveContainer width="100%" height={130}>
-                <BarChart data={series} margin={CHART_MARGIN}>
+                <BarChart data={series} margin={CHART_MARGIN} onClick={drill.onChartClick}>
                   <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
                   <XAxis {...X_AXIS} />
                   <YAxis
@@ -439,7 +445,7 @@ function ChartsPanel({
             valueLabel={`total · ${range}`}
             chart={
               <ResponsiveContainer width="100%" height={150}>
-                <LineChart data={series} margin={CHART_MARGIN}>
+                <LineChart data={series} margin={CHART_MARGIN} onClick={drill.onChartClick}>
                   <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" vertical={false} />
                   <XAxis {...X_AXIS} />
                   <YAxis
@@ -461,6 +467,7 @@ function ChartsPanel({
           />
         </div>
       )}
+      {drill.drill}
     </>
   );
 }

@@ -35,6 +35,7 @@ import {
   ChartTooltip,
   X_AXIS,
   Y_AXIS,
+  useChartDrill,
 } from "@/components/charts";
 import { StatsGrid } from "@/components/stats-grid";
 import { paletteBg } from "@/lib/data/palette";
@@ -506,6 +507,7 @@ function RecentTab({
       <ReportTrends
         postsInWindow={allPosts}
         windowDays={windowDays}
+        accountById={accountById}
       />
 
       <section className="mb-5">
@@ -812,10 +814,16 @@ function relativeLastPost(
 function ReportTrends({
   postsInWindow,
   windowDays,
+  accountById,
 }: {
   postsInWindow: PostRow[];
   windowDays: number;
+  accountById: Map<string, AccountView>;
 }) {
+  // Click any node → drill into the posts from that day across all
+  // scoped accounts. `accountById` powers the per-row handle label.
+  const drill = useChartDrill({ posts: postsInWindow, accountById });
+
   if (postsInWindow.length === 0) {
     return null;
   }
@@ -842,7 +850,7 @@ function ReportTrends({
           valueLabel={`total · ${rangeLabel}`}
           chart={
             <ResponsiveContainer width="100%" height={150}>
-              <AreaChart data={series} margin={CHART_MARGIN}>
+              <AreaChart data={series} margin={CHART_MARGIN} onClick={drill.onChartClick}>
                 <defs>
                   <linearGradient
                     id="report-views-fill"
@@ -893,7 +901,7 @@ function ReportTrends({
           valueLabel={`weighted · ${rangeLabel}`}
           chart={
             <ResponsiveContainer width="100%" height={150}>
-              <LineChart data={series} margin={CHART_MARGIN}>
+              <LineChart data={series} margin={CHART_MARGIN} onClick={drill.onChartClick}>
                 <CartesianGrid
                   stroke="var(--line)"
                   strokeDasharray="3 3"
@@ -928,7 +936,7 @@ function ReportTrends({
           valueLabel={`total · ${rangeLabel}`}
           chart={
             <ResponsiveContainer width="100%" height={130}>
-              <BarChart data={series} margin={CHART_MARGIN}>
+              <BarChart data={series} margin={CHART_MARGIN} onClick={drill.onChartClick}>
                 <CartesianGrid
                   stroke="var(--line)"
                   strokeDasharray="3 3"
@@ -947,6 +955,7 @@ function ReportTrends({
           }
         />
       </div>
+      {drill.drill}
     </section>
   );
 }
