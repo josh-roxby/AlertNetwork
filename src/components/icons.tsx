@@ -163,3 +163,16 @@ export function IconSignOut(props: IconProps) {
     </svg>
   );
 }
+
+// "Open in new window" / external link glyph — box with an arrow
+// pointing up-right out of the top-right corner. Used on account
+// tiles for the "View on TikTok" shortcut (desktop only).
+export function IconExternalLink(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M9 5H4v11h11v-5" />
+      <path d="M11 4h5v5" />
+      <path d="M16 4l-7 7" />
+    </svg>
+  );
+}

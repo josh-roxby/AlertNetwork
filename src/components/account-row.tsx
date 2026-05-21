@@ -1,4 +1,6 @@
-import Link from "next/link";
+"use client";
+
+import { useRouter } from "next/navigation";
 import { useShell, useActiveProject } from "@/components/shell-context";
 import { compactNumber, percent, relativeDate } from "@/lib/format";
 import { paletteBg } from "@/lib/data/palette";
@@ -6,6 +8,7 @@ import {
   BAND_TONE,
   computeAccountHealth,
 } from "@/lib/data/health";
+import { IconExternalLink } from "@/components/icons";
 import type { AccountView, PostRow } from "@/lib/data/types";
 
 // Width-pinned to keep the right column from squeezing the metric
@@ -17,9 +20,18 @@ const TREND_WINDOW = "WoW";
 export function AccountRow({ account }: { account: AccountView }) {
   const { postsByAccount } = useShell();
   const project = useActiveProject();
+  const router = useRouter();
   const posts = postsByAccount.get(account.id) ?? ([] as PostRow[]);
   const health = computeAccountHealth(posts, project?.health_config);
   const hasPosts = posts.length > 0;
+
+  // The whole row navigates to the account detail. We render the
+  // row as a button/div (not <a>) so the desktop-only "open on
+  // platform" can sit inside as its own <a> without nesting
+  // anchors. Keyboard users get tab + Enter via the role/tabIndex.
+  function openDetail() {
+    router.push(`/accounts/${account.id}`);
+  }
 
   const initial =
     account.handle.replace(/^@/, "").charAt(0).toUpperCase() || "?";
@@ -30,9 +42,20 @@ export function AccountRow({ account }: { account: AccountView }) {
   const tone = BAND_TONE[health.band];
 
   return (
-    <Link
-      href={`/accounts/${account.id}`}
-      className="tap-row group flex w-full items-center gap-3 rounded-md border border-line bg-surface px-3 py-3 text-left transition-colors duration-[120ms] hover:bg-surface-2"
+    // Rendered as div+role=link so the desktop external <a> can sit
+    // inside as a normal child (no nested anchors). Enter/Space
+    // trigger navigation for keyboard users.
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={openDetail}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openDetail();
+        }
+      }}
+      className="tap-row group flex w-full cursor-pointer items-center gap-3 rounded-md border border-line bg-surface px-3 py-3 text-left transition-colors duration-[120ms] hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
       <span className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-3 ring-1 ring-line">
         <span
@@ -136,7 +159,24 @@ export function AccountRow({ account }: { account: AccountView }) {
           </span>
         )}
       </span>
-    </Link>
+
+      {/* Desktop-only "open on platform" affordance. Themed neutral
+          (not yellow) so it doesn't compete with the primary row
+          click target. stopPropagation prevents the parent row's
+          click handler from also firing. */}
+      <a
+        href={account.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        aria-label={`Open ${account.handle} on TikTok`}
+        title="Open on TikTok"
+        className="tap-btn ml-1 hidden h-7 w-7 shrink-0 items-center justify-center rounded-xs border border-line-2 bg-surface text-ink-3 transition-colors duration-[120ms] hover:border-ink-3 hover:bg-surface-2 hover:text-ink lg:inline-flex"
+      >
+        <IconExternalLink />
+      </a>
+    </div>
   );
 }
 
