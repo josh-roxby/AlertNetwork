@@ -174,7 +174,14 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshProjects = useCallback(async () => {
-    const rows = await loadProjects();
+    // Refresh BOTH projects and super-admin status — the dashboard
+    // diagnostic "Refresh data" button calls this, and a stuck user
+    // most likely needs both to re-resolve to recover.
+    const [rows, sa] = await Promise.all([
+      loadProjects(),
+      fetchIsSuperAdmin().catch(() => false),
+    ]);
+    setIsSuperAdmin(sa);
     if (!activeProjectId && rows[0]) {
       setActiveProjectId(rows[0].id);
     }
