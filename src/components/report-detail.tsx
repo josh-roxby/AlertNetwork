@@ -292,13 +292,15 @@ export function ReportDetail({ reportId }: { reportId: string }) {
       </section>
 
       <section className="mb-5 flex flex-col gap-2 sm:flex-row">
-        <Link
+        <a
           href={`/reports/${report.id}/view`}
+          target="_blank"
+          rel="noopener noreferrer"
           className="tap-btn flex flex-1 items-center justify-center gap-2 rounded-sm bg-accent px-4 py-3 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
         >
           <IconEye stroke="#0A0A0A" />
           Open view
-        </Link>
+        </a>
         {canManage && (
           <button
             type="button"
@@ -995,8 +997,10 @@ function HistoryTab({
         const delivered = h.status === "delivered";
         return (
           <li key={h.id}>
-            <Link
+            <a
               href={`/reports/${reportId}/view?historyId=${h.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="tap-row flex items-center gap-3 rounded-md border border-line bg-surface px-3 py-3 hover:bg-surface-2"
             >
               <span
@@ -1023,7 +1027,7 @@ function HistoryTab({
                 {relativeDate(h.sent_at)}
               </span>
               <IconChevronRight className="shrink-0 text-ink-3" />
-            </Link>
+            </a>
           </li>
         );
       })}
