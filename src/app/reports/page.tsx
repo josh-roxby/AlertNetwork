@@ -7,15 +7,19 @@ import { IconPlus } from "@/components/icons";
 import { SkeletonProjectList } from "@/components/skeletons";
 
 export default function ReportsPage() {
-  const { activeProjectId, reports, reportsLoading, openSheet, canManage } =
-    useShell();
+  const {
+    activeProjectId,
+    reports,
+    reportsLoading,
+    openSheet,
+    canManage,
+    bootstrapping,
+  } = useShell();
   const project = useActiveProject();
 
-  if (!activeProjectId) {
-    return null;
-  }
-
-  if (reportsLoading) {
+  // Bootstrap-gated skeleton — same approach as /dashboard. Holds
+  // the skeleton until the shell has resolved.
+  if (bootstrapping || (activeProjectId && reportsLoading)) {
     return (
       <>
         <section className="mb-4">
@@ -24,6 +28,10 @@ export default function ReportsPage() {
         <SkeletonProjectList count={2} />
       </>
     );
+  }
+
+  if (!activeProjectId) {
+    return null;
   }
 
   if (reports.length === 0) {

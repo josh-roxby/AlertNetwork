@@ -75,6 +75,10 @@ type ShellContextValue = {
   // True when the caller appears in `super_admins`. Drives the "New
   // project" affordance — only super-admins can create projects.
   isSuperAdmin: boolean;
+  // True until the first projects + isSuperAdmin sync after mount
+  // completes. Pages use this to hold a unified skeleton instead of
+  // flashing between empty-state and content as each query resolves.
+  bootstrapping: boolean;
   openDrawer: () => void;
   closeDrawer: () => void;
   openSheet: (s: SheetState) => void;
@@ -110,6 +114,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
   );
   const [currentRole, setCurrentRole] = useState<ProjectRoleForUser>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
+  const [bootstrapping, setBootstrapping] = useState<boolean>(true);
 
   const loadProjects = useCallback(async () => {
     try {
@@ -147,6 +152,12 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       const validStored = rows.find((p) => p.id === stored);
       const next = validStored?.id ?? rows[0]?.id ?? null;
       setActiveProjectIdState(next);
+
+      // First-sync gate. Pages hold a unified skeleton while this is
+      // true; flipping it off here means we never flash between
+      // "empty state" and "real data" — only one transition from
+      // skeleton → content.
+      setBootstrapping(false);
     }
 
     syncFromAuth();
@@ -398,6 +409,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       isOwner,
       canManage,
       isSuperAdmin,
+      bootstrapping,
       openDrawer,
       closeDrawer,
       openSheet,
@@ -431,6 +443,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       isOwner,
       canManage,
       isSuperAdmin,
+      bootstrapping,
       openDrawer,
       closeDrawer,
       openSheet,

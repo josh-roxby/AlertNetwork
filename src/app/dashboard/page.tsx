@@ -43,6 +43,7 @@ export default function DashboardPage() {
     projectsLoading,
     currentRole,
     refreshProjects,
+    bootstrapping,
   } = useShell();
   const project = useActiveProject();
   const [filter, setFilter] = useState<DashboardFilter>("all");
@@ -81,6 +82,29 @@ export default function DashboardPage() {
     }
     return best;
   }, [accounts, accountHealths]);
+
+  // Hold a unified skeleton while the shell bootstraps + the
+  // per-project data fetches haven't returned yet. Prevents the
+  // brief flash of the "Waiting for invite" empty state that
+  // happens when activeProjectId is still null on first render.
+  if (bootstrapping || (activeProjectId && accountsLoading)) {
+    return (
+      <>
+        <section className="mb-4">
+          <h1 className="t-display-1 uppercase text-ink">Dashboard</h1>
+          <p className="mt-1 t-small text-ink-3">
+            {project?.name ?? "Workspace"}
+          </p>
+        </section>
+        <section className="mb-7">
+          <SkeletonStatsGrid />
+        </section>
+        <section>
+          <SkeletonAccountList count={4} />
+        </section>
+      </>
+    );
+  }
 
   if (!activeProjectId) {
     return (

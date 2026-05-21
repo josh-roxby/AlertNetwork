@@ -34,6 +34,7 @@ function AccountsView() {
     accountsLoading,
     openSheet,
     isSuperAdmin,
+    bootstrapping,
   } = useShell();
 
   const [filters, setFilters] = useState<AccountFilters>(() =>
@@ -72,6 +73,24 @@ function AccountsView() {
   }, [accounts]);
 
   const activeFilterCount = filters.categoryIds.size > 0 ? 1 : 0;
+
+  // Bootstrap-gated skeleton — same approach as /dashboard. Holds a
+  // single skeleton until the shell has resolved auth + projects +
+  // accounts, so we don't flash through the "no project" empty state
+  // on first paint.
+  if (bootstrapping || (activeProjectId && accountsLoading)) {
+    return (
+      <>
+        <section className="mb-4">
+          <h1 className="t-display-1 uppercase text-ink">Accounts</h1>
+          <p className="mt-1 t-small text-ink-3">
+            Every monitored account in this project. Tap to view details.
+          </p>
+        </section>
+        <SkeletonAccountList count={5} />
+      </>
+    );
+  }
 
   if (!activeProjectId) {
     return (
