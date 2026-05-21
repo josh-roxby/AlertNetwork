@@ -164,6 +164,19 @@ export function IconSignOut(props: IconProps) {
   );
 }
 
+// Down-arrow into a tray. The classic "install app" glyph — used
+// by the InstallButton in the top-right of mobile + desktop shells
+// when the app isn't already running standalone.
+export function IconDownload(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M10 3v10" />
+      <path d="M5 9l5 5 5-5" />
+      <path d="M3 16h14" />
+    </svg>
+  );
+}
+
 // "Open in new window" / external link glyph — box with an arrow
 // pointing up-right out of the top-right corner. Used on account
 // tiles for the "View on TikTok" shortcut (desktop only).

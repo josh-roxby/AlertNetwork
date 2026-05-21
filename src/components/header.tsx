@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { IconBack, IconHamburger } from "@/components/icons";
+import { InstallButton } from "@/components/install-button";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useShell } from "@/components/shell-context";
@@ -65,6 +66,7 @@ export function Header({
       </div>
 
       <div className="flex items-center justify-end gap-0.5">
+        <InstallButton />
         <ThemeToggle />
         {rightAction ?? <NotificationsMenu />}
       </div>
