@@ -5,107 +5,66 @@ import { IconDownload } from "@/components/icons";
 import { Sheet } from "@/components/sheet";
 
 // "Add to Home Screen" install affordance. Renders a circular button
-// in the top-right nav on both mobile and desktop shells when the
-// app isn't already running standalone.
+// in the top-right nav on both mobile and desktop shells whenever
+// the app isn't already running standalone.
 //
-// Three browser paths:
+// Previous version waited for `beforeinstallprompt` to fire before
+// showing anything — which meant on Chrome desktop the button often
+// never appeared (Chrome only fires that event after its engagement
+// heuristics are satisfied: a few visits, some interaction, ~30s on
+// page). Now the button is always visible to non-standalone users,
+// and the click handler picks the best install path it can:
 //
-//   1. Chrome / Edge / Android — fire `beforeinstallprompt` once the
-//      site meets PWA criteria. We capture it, hold onto it, and
-//      call .prompt() when the user clicks. Once accepted (or
-//      dismissed) the event won't fire again on that profile —
-//      we treat dismissal as "user said no" and hide the button.
-//
-//   2. iOS Safari — never fires beforeinstallprompt. Users have to
-//      do Share → Add to Home Screen by hand. We detect iOS Safari
-//      via UA, show the button, and on click open a Sheet with
-//      illustrated steps.
-//
-//   3. Already installed / running as PWA — we read
-//      window.matchMedia('(display-mode: standalone)') AND
-//      navigator.standalone (iOS legacy). Hide the button in
-//      either case so installed users don't see it.
-//
-// State is intentionally local — no Context needed; the button
-// renders the same in both shells.
+//   1. If `beforeinstallprompt` has fired by click time → use the
+//      native prompt directly.
+//   2. iOS Safari → show the Share → Add to Home Screen sheet.
+//   3. Anything else → show a generic "look in your browser menu"
+//      sheet so the user still gets clear next steps.
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
-type InstallState =
+type Display =
   | { kind: "loading" }
-  | { kind: "hidden" } // already installed OR no install path
-  | { kind: "native"; prompt: BeforeInstallPromptEvent }
-  | { kind: "ios" };
+  | { kind: "standalone" } // already installed → hide
+  | { kind: "visible" };
+
+type Modal = "none" | "ios" | "generic";
 
 export function InstallButton({ className }: { className?: string }) {
-  const [state, setState] = useState<InstallState>({ kind: "loading" });
-  const [iosOpen, setIosOpen] = useState(false);
-  // Keep a ref too — React's setState is async and the event handler
-  // fires once; we want to be able to call .prompt() in a separate
-  // user-gesture handler later.
+  const [display, setDisplay] = useState<Display>({ kind: "loading" });
+  const [modal, setModal] = useState<Modal>("none");
+  // The native prompt event is ephemeral — Chrome only fires it
+  // once per page lifetime. Keep it in a ref so we don't lose it on
+  // re-renders.
   const promptRef = useRef<BeforeInstallPromptEvent | null>(null);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // Already standalone? Hide and bail — no listeners.
     if (isStandalone()) {
-      setState({ kind: "hidden" });
+      setDisplay({ kind: "standalone" });
       return;
     }
+    setDisplay({ kind: "visible" });
 
     function onBeforeInstall(e: Event) {
-      // Prevent Chrome's mini-info bar; we'll surface the prompt
-      // ourselves via the button.
+      // Prevent Chrome's default mini-info bar — we'll surface the
+      // prompt via our own button instead.
       e.preventDefault();
-      const evt = e as BeforeInstallPromptEvent;
-      promptRef.current = evt;
-      setState({ kind: "native", prompt: evt });
+      promptRef.current = e as BeforeInstallPromptEvent;
     }
 
     function onInstalled() {
-      // Fired after the user accepts the install. Drop the prompt
-      // and hide the button — the next launch will be standalone.
       promptRef.current = null;
-      setState({ kind: "hidden" });
+      setDisplay({ kind: "standalone" });
     }
 
     window.addEventListener("beforeinstallprompt", onBeforeInstall);
     window.addEventListener("appinstalled", onInstalled);
-
-    // iOS Safari never fires beforeinstallprompt — detect it via UA
-    // and surface the manual-instructions fallback. If we're not on
-    // iOS Safari and the prompt event hasn't fired by next tick, we
-    // hide the button entirely (older Firefox / browsers without
-    // PWA support).
-    const isiOSSafari = /iP(hone|ad|od)/i.test(navigator.userAgent) &&
-      /Safari/i.test(navigator.userAgent) &&
-      !/CriOS|FxiOS|EdgiOS/i.test(navigator.userAgent);
-
-    if (isiOSSafari) {
-      // Settle to "ios" path only if we don't already have a native
-      // prompt (mostly hypothetical — iOS doesn't fire one).
-      setTimeout(() => {
-        setState((curr) => (curr.kind === "native" ? curr : { kind: "ios" }));
-      }, 50);
-    } else {
-      // Other non-Chrome browsers: give beforeinstallprompt a
-      // generous window to fire after page load. If it hasn't
-      // arrived by then, the browser doesn't support install →
-      // hide.
-      const t = setTimeout(() => {
-        setState((curr) => (curr.kind === "loading" ? { kind: "hidden" } : curr));
-      }, 2000);
-      return () => {
-        clearTimeout(t);
-        window.removeEventListener("beforeinstallprompt", onBeforeInstall);
-        window.removeEventListener("appinstalled", onInstalled);
-      };
-    }
 
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
@@ -115,20 +74,27 @@ export function InstallButton({ className }: { className?: string }) {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleClick() {
-    if (state.kind === "native") {
-      const evt = promptRef.current;
-      if (!evt) return;
-      await evt.prompt();
-      const choice = await evt.userChoice;
-      // Either way, the event can only be used once. Hide the button.
+    const native = promptRef.current;
+    if (native) {
+      await native.prompt();
+      const choice = await native.userChoice;
       promptRef.current = null;
-      setState({ kind: choice.outcome === "accepted" ? "hidden" : "hidden" });
-    } else if (state.kind === "ios") {
-      setIosOpen(true);
+      if (choice.outcome === "accepted") {
+        setDisplay({ kind: "standalone" });
+      }
+      return;
     }
+
+    // No native prompt available. Show platform-appropriate fallback.
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    const isiOSSafari =
+      /iP(hone|ad|od)/i.test(ua) &&
+      /Safari/i.test(ua) &&
+      !/CriOS|FxiOS|EdgiOS/i.test(ua);
+    setModal(isiOSSafari ? "ios" : "generic");
   }
 
-  if (state.kind === "loading" || state.kind === "hidden") return null;
+  if (display.kind !== "visible") return null;
 
   return (
     <>
@@ -143,14 +109,14 @@ export function InstallButton({ className }: { className?: string }) {
       </button>
 
       <Sheet
-        open={iosOpen}
-        onClose={() => setIosOpen(false)}
+        open={modal === "ios"}
+        onClose={() => setModal("none")}
         title="Install on iOS"
         description="Save Alert Network to your Home Screen so it launches as a standalone app."
         footer={
           <button
             type="button"
-            onClick={() => setIosOpen(false)}
+            onClick={() => setModal("none")}
             className="tap-btn rounded-sm border border-line-2 bg-surface px-4 py-2.5 t-body font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
           >
             Got it
@@ -191,6 +157,56 @@ export function InstallButton({ className }: { className?: string }) {
           />
         </ol>
       </Sheet>
+
+      <Sheet
+        open={modal === "generic"}
+        onClose={() => setModal("none")}
+        title="Install Alert Network"
+        description="Save the app to your device so it launches without the browser chrome."
+        footer={
+          <button
+            type="button"
+            onClick={() => setModal("none")}
+            className="tap-btn rounded-sm border border-line-2 bg-surface px-4 py-2.5 t-body font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
+          >
+            Got it
+          </button>
+        }
+      >
+        <ol className="flex flex-col gap-3 text-ink-2">
+          <Step
+            n={1}
+            body={
+              <>
+                Open your browser&rsquo;s <span className="font-semibold text-ink">menu</span>{" "}
+                (usually the ⋮ icon in the top-right).
+              </>
+            }
+          />
+          <Step
+            n={2}
+            body={
+              <>
+                Look for <span className="font-semibold text-ink">Install app</span>,{" "}
+                <span className="font-semibold text-ink">Add to Home Screen</span>, or{" "}
+                <span className="font-semibold text-ink">Save to dock</span>.
+              </>
+            }
+          />
+          <Step
+            n={3}
+            body={
+              <>
+                If you don&rsquo;t see those options, try{" "}
+                <span className="font-semibold text-ink">Chrome</span>,{" "}
+                <span className="font-semibold text-ink">Edge</span>, or iOS{" "}
+                <span className="font-semibold text-ink">Safari</span> — those are
+                the browsers with full install support.
+              </>
+            }
+          />
+        </ol>
+      </Sheet>
     </>
   );
 }
@@ -215,9 +231,6 @@ function Step({ n, body }: { n: number; body: React.ReactNode }) {
 }
 
 // True when the page is currently launched as an installed PWA.
-// Two probes: modern matchMedia + the iOS-specific navigator.standalone
-// legacy boolean (Safari never picks up display-mode: standalone, so
-// without this iOS PWA users would still see the install button).
 function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
   if (

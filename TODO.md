@@ -19,6 +19,10 @@ Everything below the snapshot is open work. Anything not listed is shipped.
 | Backfill (1-12 months) | ✅ Super-admin only, Manage Project sheet |
 | Email branding | ✅ Brand-yellow report CTA + branded auth templates ready to paste in |
 | `scrape_runs` audit | ✅ Every cron + manual run lands a row |
+| Chart drill-down | ✅ Click any chart node → Sheet with that day's posts (in-app surfaces) |
+| PWA install | ✅ Manifest + icons + always-visible top-right install button |
+| Brand mark | ✅ SVG recreation in header, favicon, PWA icon |
+| Project creation fix | ✅ Server-side `/api/projects/create` — bypasses the misfiring RLS check |
 
 ---
 
@@ -32,6 +36,8 @@ These are concrete fixes / improvements that came out of the work in `SESSION_LO
 - [ ] **Slack/Discord webhook on cron failure.** When `scrape_runs.status = 'failed'` lands, hit a webhook URL. Means cron breakage shows up in your phone notifications, not via you noticing stale dashboard data 2 days later. Two-line addition in `finishScrapeRun`.
 - [ ] **CSV export on report detail.** Manager/owner asks for raw data dump — currently no path. Add a "Download CSV" button on the report Recent tab that includes the same data the snapshot carries. ~30 LOC.
 - [ ] **Project-tile metrics row on `/projects`** *(confirmed by user, ready)*. Each project card grows a small horizontal stats row: total views (30d), avg ER, accounts count, MoM delta on views. Same `AccountStatsBlock` pattern but project-level. Helps you scan multi-project health from the project switcher.
+- [ ] **Diagnose & fix the RLS WITH CHECK misfire on projects.** Discovered while debugging "couldn't create project". Policy `(is_super_admin() AND owner_id = auth.uid())` evaluates to TRUE outside the policy but rejects INSERTs at policy-evaluation time. Worked around by moving creates to `/api/projects/create` (server-side, service-role). Still worth understanding — if it bites another table later we want to know why. Probable causes to investigate: SECURITY DEFINER function semantics in policy expressions, JWT GUC visibility differences during INSERT vs SELECT, or a Supabase version quirk.
+- [ ] **Drop the actual logo PNGs in `public/`.** User provided two logo files (yellow/black + white/black). Currently shipping an SVG recreation of the design (PR #62) — close but not pixel-identical. When ready, drop the white-on-black PNG at `public/logo.png` and swap three references (`icon.tsx`, `apple-icon.tsx`, `BrandMark`) to use `next/image` instead.
 
 ---
 

@@ -30,26 +30,28 @@ export async function createProject(input: {
   name: string;
   description?: string;
 }): Promise<ProjectRow> {
-  const supabase = supabaseBrowser();
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-  if (userError) throw userError;
-  if (!user) throw new Error("Not signed in");
-
-  const { data, error } = await supabase
-    .from("projects")
-    .insert({
-      owner_id: user.id,
+  // Routed through /api/projects/create — server-side super-admin
+  // check + service-role insert. The RLS WITH CHECK clause
+  // (is_super_admin() AND owner_id = auth.uid()) was rejecting
+  // INSERTs that should have been allowed; the API route bypasses
+  // that path entirely while keeping the same auth gate.
+  const res = await fetch("/api/projects/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
       name: input.name.trim(),
-      description: input.description?.trim() || null,
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data as ProjectRow;
+      description: input.description?.trim() || undefined,
+    }),
+  });
+  const body = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    project?: ProjectRow;
+    error?: string;
+  };
+  if (!res.ok || !body.ok || !body.project) {
+    throw new Error(body.error ?? "Couldn't create the project.");
+  }
+  return body.project;
 }
 
 export async function updateProject(
