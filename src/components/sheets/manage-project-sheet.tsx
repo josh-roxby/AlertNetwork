@@ -14,7 +14,8 @@ export function ManageProjectSheet({
   open: boolean;
   onClose: () => void;
 }) {
-  const { refreshProjects } = useShell();
+  const { refreshProjects, refreshAccounts, refreshPosts, isSuperAdmin } =
+    useShell();
   const project = useActiveProject();
 
   const initialConfig = useMemo(
@@ -29,6 +30,19 @@ export function ManageProjectSheet({
     "idle",
   );
   const [errorMessage, setErrorMessage] = useState("");
+
+  // Backfill — manual "update everything" scrape for super-admins.
+  // Months selector defaults to 3 (the typical "fix a gap" range).
+  const [backfillMonths, setBackfillMonths] = useState(3);
+  const [backfillStatus, setBackfillStatus] = useState<
+    "idle" | "running" | "done" | "error"
+  >("idle");
+  const [backfillResult, setBackfillResult] = useState<{
+    accounts: number;
+    posts: number;
+    durationMs: number;
+  } | null>(null);
+  const [backfillError, setBackfillError] = useState<string | null>(null);
 
   // Re-seed form state whenever the active project (or the sheet)
   // changes. Sync to a server-derived source — cascading state is
@@ -83,6 +97,46 @@ export function ManageProjectSheet({
       setStatus("error");
       setErrorMessage(
         err instanceof Error ? err.message : "Couldn't save the project.",
+      );
+    }
+  }
+
+  async function handleBackfill() {
+    if (!project) return;
+    setBackfillStatus("running");
+    setBackfillError(null);
+    setBackfillResult(null);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/backfill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ months: backfillMonths }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        totalAccounts?: number;
+        postsWritten?: number;
+        durationMs?: number;
+        error?: string;
+      };
+      if (!res.ok || !body.ok) {
+        setBackfillStatus("error");
+        setBackfillError(body.error ?? "Backfill failed.");
+        return;
+      }
+      setBackfillResult({
+        accounts: body.totalAccounts ?? 0,
+        posts: body.postsWritten ?? 0,
+        durationMs: body.durationMs ?? 0,
+      });
+      setBackfillStatus("done");
+      // Refresh in-memory data so the dashboard reflects the new
+      // posts immediately, no manual reload.
+      await Promise.all([refreshAccounts(), refreshPosts()]);
+    } catch (err) {
+      setBackfillStatus("error");
+      setBackfillError(
+        err instanceof Error ? err.message : "Network error.",
       );
     }
   }
@@ -246,6 +300,77 @@ export function ManageProjectSheet({
               />
             </div>
           </section>
+
+          {isSuperAdmin && (
+            <section className="mb-5 rounded-md border border-line bg-surface-2 p-4">
+              <h3 className="t-micro mb-2 text-ink-3">Update project metrics</h3>
+              <p className="mb-3 t-small text-ink-2">
+                Re-scrape every account in this project for the last{" "}
+                <strong className="text-ink">{backfillMonths}</strong>{" "}
+                {backfillMonths === 1 ? "month" : "months"}. Posts that fell
+                out of the rolling daily window get their metrics refreshed,
+                and historical posts that were never captured get inserted.
+              </p>
+              <label className="mb-3 block">
+                <span className="mb-1.5 flex items-center justify-between">
+                  <span className="t-micro text-ink-3">Months back</span>
+                  <span
+                    data-numeric
+                    className="text-ink"
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 13,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {backfillMonths}
+                  </span>
+                </span>
+                <input
+                  type="range"
+                  min={1}
+                  max={12}
+                  step={1}
+                  value={backfillMonths}
+                  onChange={(e) => setBackfillMonths(Number(e.target.value))}
+                  disabled={backfillStatus === "running"}
+                  className="w-full accent-accent"
+                />
+                <div
+                  className="mt-1 flex justify-between t-meta text-ink-4"
+                  style={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
+                >
+                  <span>1m</span>
+                  <span>6m</span>
+                  <span>12m</span>
+                </div>
+              </label>
+              <button
+                type="button"
+                onClick={handleBackfill}
+                disabled={backfillStatus === "running" || !project}
+                className="tap-btn w-full rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {backfillStatus === "running"
+                  ? "Scraping… (can take a few minutes)"
+                  : "Run backfill"}
+              </button>
+              {backfillStatus === "done" && backfillResult && (
+                <p className="mt-3 rounded-sm border border-good bg-good-soft px-3 py-2 t-small text-good">
+                  Done. {backfillResult.accounts} accounts, {backfillResult.posts}{" "}
+                  posts written in {(backfillResult.durationMs / 1000).toFixed(1)}s.
+                </p>
+              )}
+              {backfillStatus === "error" && backfillError && (
+                <p
+                  className="mt-3 rounded-sm border border-bad bg-bad-soft px-3 py-2 t-small text-bad"
+                  role="alert"
+                >
+                  {backfillError}
+                </p>
+              )}
+            </section>
+          )}
 
           {status === "done" && !dirty && (
             <p className="rounded-sm border border-good bg-good-soft px-3 py-2 t-small text-good">

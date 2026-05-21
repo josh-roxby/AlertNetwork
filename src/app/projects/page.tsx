@@ -17,6 +17,7 @@ export default function ProjectsPage() {
     projects,
     projectsLoading,
     isSuperAdmin,
+    bootstrapping,
   } = useShell();
   const active = useActiveProject();
   const user = useAuthUser();
@@ -66,7 +67,7 @@ export default function ProjectsPage() {
     router.push("/dashboard");
   }
 
-  if (projectsLoading) {
+  if (bootstrapping || projectsLoading) {
     return (
       <>
         <section className="mb-4">
