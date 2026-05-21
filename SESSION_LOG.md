@@ -151,6 +151,79 @@ Verified end-to-end live on 2026-05-21: pg-cron success + audit row + dedup'd gi
 
 ---
 
+## 2026-05-21 — Session recap docs (PR #56)
+
+Meta-PR. New `SESSION_LOG.md`. Rewrote `TODO.md` to clear out pre-DB cruft + organise as "open follow-ups / in consideration / longer-term / notes for future-me". Updated `CLAUDE.md` so the TL;DR no longer claims placeholder data + no-op auth (both shipped long ago).
+
+User-confirmed next: project-tile metrics row on `/projects`.
+
+---
+
+## 2026-05-21 — View report links open in new tab (PR #58)
+
+Small follow-up — the "Open view" CTA on `/reports/[id]` and the History tab rows both navigated in-place. Swapped to `<a target="_blank" rel="noopener noreferrer">`. Recipient never loses their place in the in-app management context. FAB on `/reports/[id]` already had target=_blank.
+
+---
+
+## 2026-05-21 — Chart drill-down (PR #59)
+
+`useChartDrill` hook in `src/components/charts.tsx`. Click any node on a Recharts chart → Sheet opens listing the posts from that day, with caption + metrics + "Open on platform" link (target=_blank) per row. Sheet primitive does drawer-on-mobile and centred-panel-on-desktop in one component so no separate popover.
+
+Wired into all 4 charts on `/accounts/[id]` (single-account scope, no handle label) and all 3 charts in `/reports/[id]` Trends section (cross-account scope, `accountById` map passed so each row labels the handle that posted).
+
+`/reports/[id]/view` (share view) **not** wired — that page renders from `snapshot.daily_series` + `snapshot.top_posts` which is capped at 5. Drill there would either need a wider snapshot or a live fetch. Skipped; in-app is the primary drill surface.
+
+---
+
+## 2026-05-21 — PWA install support (PRs #60, #61)
+
+Two-step PWA rollout:
+
+**PR #60** — minimal manifest + icons, no service worker.
+- `src/app/manifest.ts` → `/manifest.webmanifest`. `display: standalone`, dark theme/background.
+- `src/app/icon.tsx` (512×512) and `src/app/apple-icon.tsx` (180×180). Generated PNGs from JSX via ImageResponse at build time.
+- `src/app/layout.tsx` `appleWebApp` metadata block — `capable: true`, `statusBarStyle: "black"` (solid bar, not translucent — avoids needing safe-area-inset padding that the layout doesn't apply).
+- No SW, no offline, no notifications. Chrome's auto install banner needs a SW so users install manually via menu → Add to Home Screen. iOS Share → Add to Home Screen always works.
+
+**PR #61** — circular install button top-right of both shells.
+- New `IconDownload` glyph.
+- `src/components/install-button.tsx` — captures `beforeinstallprompt`, fires `.prompt()` on click for Chrome path; falls back to iOS-Safari-instructions Sheet via UA sniff; hides when already standalone via `display-mode: standalone` matchMedia AND `navigator.standalone` (iOS legacy).
+- Initial version waited for `beforeinstallprompt` before showing — meant nothing showed on Chrome desktop until engagement criteria fired (~30s + multiple visits). **Reworked this round** (see entry below).
+
+---
+
+## 2026-05-21 — Brand mark + logo rollout (PR #62)
+
+User provided two logo PNGs (yellow-on-black and white-on-black). Files arrived as multimodal-only — couldn't write the raw bitmaps to disk. Built a vector recreation in SVG instead:
+
+- `src/components/brand-mark.tsx` — reusable React component using `currentColor` for strokes + fills. Hexagonal frame of 6 ring nodes + 3 ascending bars in the centre. Mixed solid (top-left edge, lower edges) + dotted (rest) lines.
+- Replaced the placeholder "A" in `src/app/icon.tsx` and `src/app/apple-icon.tsx` with the inlined brand-mark geometry. (Inlined, not imported — ImageResponse edge runtime doesn't support `React.useId`.)
+- Replaced the 10px yellow dot beside "Alert Network" in `desktop-shell.tsx` + `drawer.tsx` with the 22px brand mark, still tinted accent yellow.
+
+If pixel parity ever matters: drop the actual PNG into `public/logo.png` and swap three references — `icon.tsx`, `apple-icon.tsx`, and `BrandMark` — to point at the static file via `next/image`. ~15 lines total.
+
+---
+
+## 2026-05-21 — Project-create fix + install button rework (this PR)
+
+**Issue 1: super-admin couldn't create projects.** User got a 403 in logs ("no api key was present"). I reproduced with simulated SQL and confirmed the RLS WITH CHECK clause `(is_super_admin() AND owner_id = auth.uid())` was rejecting INSERTs that should have passed. Both clauses evaluated to TRUE when called outside the policy, but inside the policy expression the result was FALSE. Couldn't pin down the root cause — possibly something about how PostgreSQL evaluates `SECURITY DEFINER` function calls embedded in RLS expressions on this specific Supabase deployment.
+
+**Workaround that ships:** moved project creation to `/api/projects/create` — server-side. Same pattern as `/api/projects/[id]/backfill`. Verifies the user via `supabaseServer()` session, calls the `is_super_admin()` RPC, then writes with `supabaseAdmin()` (service-role, bypasses RLS). `lib/data/projects.ts` `createProject()` now fetches that endpoint instead of inserting directly. Same UX from the user's perspective, just one HTTP hop instead of a direct PostgREST INSERT.
+
+The RLS policy is still on `projects` for direct-INSERT attempts (in case the route ever moves back to browser-side), but the production write path no longer relies on it.
+
+**Issue 2: install button invisible.** PR #61 only showed the button after `beforeinstallprompt` fired. Chrome doesn't fire that event until its engagement heuristics are satisfied (3 visits, ~30s on page, some interaction). So most fresh visits saw nothing.
+
+**Fix:** the button now **always** renders for non-standalone users. Click handler picks the best install path it can find:
+
+1. If `beforeinstallprompt` HAS fired by click time → use the native prompt directly.
+2. iOS Safari (UA-sniffed) → Sheet with Share → Add to Home Screen steps.
+3. Anything else → generic "look in your browser menu" Sheet with Chrome/Edge/Safari hint.
+
+Means the button is discoverable from the first page load on every browser, and the worst-case UX is the generic-instructions Sheet (still actionable, never a dead-end).
+
+---
+
 ## Cross-cutting notes that didn't make CLAUDE.md
 
 - **Scrape audit is the source of truth.** When debugging cron, always go to `scrape_runs` first — it'll tell you whether anything fired, which trigger, and what wrote. The cron debug saga from 2026-05-19 wouldn't have happened with this in place.
