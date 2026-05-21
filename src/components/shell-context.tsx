@@ -15,7 +15,11 @@ import { listAccounts } from "@/lib/data/accounts";
 import { listTags } from "@/lib/data/tags";
 import { listReports } from "@/lib/data/reports";
 import { listPostsForProject } from "@/lib/data/posts";
-import { roleForProject, type ProjectRoleForUser } from "@/lib/data/members";
+import {
+  isSuperAdmin as fetchIsSuperAdmin,
+  roleForProject,
+  type ProjectRoleForUser,
+} from "@/lib/data/members";
 import type {
   AccountView,
   CategoryRow,
@@ -62,6 +66,9 @@ type ShellContextValue = {
   // controls; "owner" gets everything.
   currentRole: ProjectRoleForUser;
   isOwner: boolean;
+  // True when the caller appears in `super_admins`. Drives the "New
+  // project" affordance — only super-admins can create projects.
+  isSuperAdmin: boolean;
   openDrawer: () => void;
   closeDrawer: () => void;
   openSheet: (s: SheetState) => void;
@@ -96,6 +103,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
     null,
   );
   const [currentRole, setCurrentRole] = useState<ProjectRoleForUser>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
 
   const loadProjects = useCallback(async () => {
     try {
@@ -118,8 +126,13 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     async function syncFromAuth() {
-      const rows = await loadProjects();
+      const [rows, sa] = await Promise.all([
+        loadProjects(),
+        fetchIsSuperAdmin().catch(() => false),
+      ]);
       if (cancelled) return;
+
+      setIsSuperAdmin(sa);
 
       const stored =
         typeof window !== "undefined"
@@ -369,6 +382,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       postsByAccount,
       currentRole,
       isOwner,
+      isSuperAdmin,
       openDrawer,
       closeDrawer,
       openSheet,
@@ -400,6 +414,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
       postsByAccount,
       currentRole,
       isOwner,
+      isSuperAdmin,
       openDrawer,
       closeDrawer,
       openSheet,

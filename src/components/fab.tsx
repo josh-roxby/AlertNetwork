@@ -73,9 +73,15 @@ function FabBase({
   style: { bottom: number; right: number };
 }) {
   const pathname = usePathname();
-  const { openDrawer, openSheet, isOwner } = useShell();
+  const { openDrawer, openSheet, isOwner, isSuperAdmin } = useShell();
   const spec = fabForPath(pathname, surface);
   if (spec.kind === "none") return null;
+
+  // Project creation is super-admin only — gate it separately to
+  // catch non-super-admin owners on /projects.
+  if (spec.kind === "sheet" && spec.sheet === "newProject" && !isSuperAdmin) {
+    return null;
+  }
 
   // Viewers don't get the per-page "create" affordance. The view-in-
   // new-tab eye on a specific report is still useful for them, and
