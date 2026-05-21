@@ -33,6 +33,7 @@ function AccountsView() {
     accounts,
     accountsLoading,
     openSheet,
+    isSuperAdmin,
   } = useShell();
 
   const [filters, setFilters] = useState<AccountFilters>(() =>
@@ -75,7 +76,9 @@ function AccountsView() {
   if (!activeProjectId) {
     return (
       <NoProjectState
-        onCreate={() => openSheet({ kind: "newProject" })}
+        onCreate={
+          isSuperAdmin ? () => openSheet({ kind: "newProject" }) : undefined
+        }
       />
     );
   }
@@ -230,7 +233,7 @@ function AccountsView() {
   );
 }
 
-function NoProjectState({ onCreate }: { onCreate: () => void }) {
+function NoProjectState({ onCreate }: { onCreate?: () => void }) {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-2 text-center">
       <span
@@ -239,18 +242,24 @@ function NoProjectState({ onCreate }: { onCreate: () => void }) {
       >
         <IconPlus />
       </span>
-      <h1 className="t-display-3 uppercase text-ink">Create a project first</h1>
+      <h1 className="t-display-3 uppercase text-ink">
+        {onCreate ? "Create a project first" : "Waiting for an invite"}
+      </h1>
       <p className="mt-2 max-w-[28ch] t-body text-ink-2">
-        Accounts belong to a project. Create one to start monitoring TikTok URLs.
+        {onCreate
+          ? "Accounts belong to a project. Create one to start monitoring TikTok URLs."
+          : "You haven't been added to any projects yet. Ask the super admin to invite you."}
       </p>
-      <button
-        type="button"
-        onClick={onCreate}
-        className="tap-btn mt-5 inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
-      >
-        <IconPlus stroke="#0A0A0A" />
-        New project
-      </button>
+      {onCreate && (
+        <button
+          type="button"
+          onClick={onCreate}
+          className="tap-btn mt-5 inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
+        >
+          <IconPlus stroke="#0A0A0A" />
+          New project
+        </button>
+      )}
     </div>
   );
 }

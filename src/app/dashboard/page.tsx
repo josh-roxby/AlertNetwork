@@ -37,6 +37,7 @@ export default function DashboardPage() {
     postsByAccount,
     openSheet,
     isOwner,
+    isSuperAdmin,
   } = useShell();
   const project = useActiveProject();
   const [filter, setFilter] = useState<DashboardFilter>("all");
@@ -79,10 +80,20 @@ export default function DashboardPage() {
   if (!activeProjectId) {
     return (
       <EmptyState
-        title="Create your first project"
-        body="A project is a workspace for monitoring TikTok accounts. Once you create one, you can start adding accounts."
-        cta="New project"
-        onCta={() => openSheet({ kind: "newProject" })}
+        title={
+          isSuperAdmin
+            ? "Create your first project"
+            : "Waiting for an invite"
+        }
+        body={
+          isSuperAdmin
+            ? "A project is a workspace for monitoring TikTok accounts. Once you create one, you can start adding accounts."
+            : "You haven't been added to any projects yet. Ask the super admin to invite you."
+        }
+        cta={isSuperAdmin ? "New project" : undefined}
+        onCta={
+          isSuperAdmin ? () => openSheet({ kind: "newProject" }) : undefined
+        }
       />
     );
   }

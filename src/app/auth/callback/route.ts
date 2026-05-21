@@ -39,17 +39,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  const [ownedRes, memberRes] = await Promise.all([
+  // A super-admin always has access — they may have zero projects on
+  // first sign-in and we want them to land in the app so they can
+  // create one. Other users need either an owned project or a
+  // project_members row.
+  const [ownedRes, memberRes, superAdminRes] = await Promise.all([
     supabase.from("projects").select("id").eq("owner_id", user.id).limit(1),
     supabase
       .from("project_members")
       .select("project_id")
       .eq("user_id", user.id)
       .limit(1),
+    supabase
+      .from("super_admins")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle(),
   ]);
 
   const hasAccess =
-    (ownedRes.data?.length ?? 0) > 0 || (memberRes.data?.length ?? 0) > 0;
+    !!superAdminRes.data ||
+    (ownedRes.data?.length ?? 0) > 0 ||
+    (memberRes.data?.length ?? 0) > 0;
 
   if (!hasAccess) {
     await supabase.auth.signOut();

@@ -11,8 +11,13 @@ import { supabaseBrowser } from "@/lib/supabase";
 
 export default function ProjectsPage() {
   const router = useRouter();
-  const { setActiveProjectId, openSheet, projects, projectsLoading } =
-    useShell();
+  const {
+    setActiveProjectId,
+    openSheet,
+    projects,
+    projectsLoading,
+    isSuperAdmin,
+  } = useShell();
   const active = useActiveProject();
   const user = useAuthUser();
 
@@ -83,17 +88,20 @@ export default function ProjectsPage() {
         </span>
         <h1 className="t-display-3 uppercase text-ink">No projects yet</h1>
         <p className="mt-2 max-w-[28ch] t-body text-ink-2">
-          A project is a workspace for monitoring a set of accounts. Create
-          your first one to get started.
+          {isSuperAdmin
+            ? "A project is a workspace for monitoring a set of accounts. Create your first one to get started."
+            : "You haven't been added to any projects yet. Ask the super admin to invite you."}
         </p>
-        <button
-          type="button"
-          onClick={() => openSheet({ kind: "newProject" })}
-          className="tap-btn mt-5 inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
-        >
-          <IconPlus stroke="#0A0A0A" />
-          Add project
-        </button>
+        {isSuperAdmin && (
+          <button
+            type="button"
+            onClick={() => openSheet({ kind: "newProject" })}
+            className="tap-btn mt-5 inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 t-body font-semibold text-[#0A0A0A] hover:bg-accent-dim"
+          >
+            <IconPlus stroke="#0A0A0A" />
+            Add project
+          </button>
+        )}
       </div>
     );
   }
@@ -108,14 +116,16 @@ export default function ProjectsPage() {
             this selection.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => openSheet({ kind: "newProject" })}
-          className="tap-btn inline-flex shrink-0 items-center gap-1.5 rounded-sm bg-accent px-3 py-2 t-small font-semibold text-[#0A0A0A] hover:bg-accent-dim"
-        >
-          <IconPlus stroke="#0A0A0A" />
-          New
-        </button>
+        {isSuperAdmin && (
+          <button
+            type="button"
+            onClick={() => openSheet({ kind: "newProject" })}
+            className="tap-btn inline-flex shrink-0 items-center gap-1.5 rounded-sm bg-accent px-3 py-2 t-small font-semibold text-[#0A0A0A] hover:bg-accent-dim"
+          >
+            <IconPlus stroke="#0A0A0A" />
+            New
+          </button>
+        )}
       </section>
 
       <ul className="flex flex-col gap-2">

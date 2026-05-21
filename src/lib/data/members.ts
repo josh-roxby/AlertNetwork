@@ -25,6 +25,24 @@ export type ProjectMemberView = ProjectMemberRow & {
 
 export type ProjectRoleForUser = "owner" | "viewer" | null;
 
+// Resolve whether the calling user appears in `super_admins`. Hits a
+// single RLS-gated row (you can only see your own membership), so it
+// returns false for anyone not on the list. Used by ShellContext to
+// gate the "New project" UI.
+export async function isSuperAdmin(): Promise<boolean> {
+  const supabase = supabaseBrowser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+  const { data } = await supabase
+    .from("super_admins")
+    .select("user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  return !!data;
+}
+
 // Resolve the calling user's role on a project. Hits two indices —
 // `projects.owner_id` and `project_members.user_id` — under RLS, so
 // the user can never see a project they don't belong to.

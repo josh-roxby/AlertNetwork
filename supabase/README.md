@@ -17,16 +17,29 @@ Schema and migrations for the AlertNetwork Postgres database.
 
 ## Tenancy model
 
-**Owner + viewers per project.** `projects.owner_id` identifies the single owner. The `project_members` table holds additional users with `role = 'viewer'` — they get `SELECT` on every project-scoped table but no `INSERT` / `UPDATE` / `DELETE` (only the owner mutates). The split is enforced by RLS via two SQL helper functions:
+**Three concentric tiers, enforced by RLS:**
 
-- `is_project_member(project_id)` — owner OR viewer; gates every SELECT policy.
-- `is_project_owner(project_id)` — strict owner check; gates every write policy.
+1. **Super admin** — listed in `super_admins`. Only super admins can `INSERT` into `projects`. There's no UI to grant super-admin status; you manage the table yourself from the Supabase Studio Table Editor. `is_super_admin()` is the SQL helper, also exposed to the browser via the `super_admins` SELECT policy (each user can see their own row, so the UI can tell whether to render the "New project" button).
+2. **Project owner** — `projects.owner_id`. Mutates everything inside a project (accounts, reports, recipients, categories, tags, etc.). The owner of a project is always the super-admin who created it.
+3. **Project viewer** — row in `project_members` with `role = 'viewer'`. Read-only access to the project's accounts, posts, reports and their history. Invited by the project owner via Settings → Team & access.
 
-Viewers are invited by the owner from Settings → Team & access. The invite uses Supabase's `auth.admin.inviteUserByEmail` (server-side, via the service role) which both creates the `auth.users` row and emails a magic-link.
+Two SQL helper functions back the RLS policies:
 
-**Invite-only sign-in.** The `/auth/callback` route checks that the freshly-authenticated user owns at least one project or appears in `project_members`. If not, it signs them out and redirects back to `/login?error=invite-only`. So anyone who knows the Supabase URL can request a magic-link, but they can't land in the app without a prior invite.
+- `is_project_member(project_id)` — owner OR viewer; gates every SELECT policy on project-scoped tables.
+- `is_project_owner(project_id)` — strict owner check; gates every INSERT/UPDATE/DELETE policy on project-scoped tables.
+
+**Inviting a viewer** uses Supabase's `auth.admin.inviteUserByEmail` (server-side, via the service role) which both creates the `auth.users` row and emails a magic-link, then inserts a `project_members` row tying the new user to the project as a viewer.
+
+**Invite-only sign-in.** The `/auth/callback` route checks that the freshly-authenticated user is a super-admin OR owns at least one project OR appears in `project_members`. If none of those, it signs them out and redirects back to `/login?error=invite-only`. So anyone who knows the Supabase URL can request a magic-link, but they can't land in the app without a prior invite (or super-admin status).
 
 The cron path (`/api/cron/daily`) needs to read every account across users to schedule scrapes — that path uses the **service-role** client, which bypasses RLS. The service-role key must never reach the browser bundle.
+
+### Granting super-admin status
+
+1. Supabase Dashboard → Table Editor → `super_admins`.
+2. Insert a row with the `user_id` from `auth.users` (look up by email) and the email.
+3. Optionally fill `granted_by` (your own user id) and `note`.
+4. The new super-admin can sign in even with zero projects and will see the "New project" button on first load.
 
 ## Schema
 
