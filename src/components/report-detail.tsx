@@ -94,7 +94,7 @@ export function ReportDetail({ reportId }: { reportId: string }) {
     categories,
     openSheet,
     refreshReports,
-    isOwner,
+    canManage,
   } = useShell();
   const activeProject = useActiveProject();
   const healthConfig: HealthConfig | null = activeProject?.health_config ?? null;
@@ -299,7 +299,7 @@ export function ReportDetail({ reportId }: { reportId: string }) {
           <IconEye stroke="#0A0A0A" />
           Open view
         </Link>
-        {isOwner && (
+        {canManage && (
           <button
             type="button"
             onClick={() =>
@@ -361,7 +361,7 @@ export function ReportDetail({ reportId }: { reportId: string }) {
           loading={historyLoading}
           rows={history}
           onOpenManage={
-            isOwner
+            canManage
               ? () =>
                   openSheet({ kind: "manageReport", reportId: report.id })
               : undefined
@@ -374,7 +374,7 @@ export function ReportDetail({ reportId }: { reportId: string }) {
           report={report}
           scopedCount={scopedIds?.length ?? 0}
           onOpenManage={
-            isOwner
+            canManage
               ? () =>
                   openSheet({ kind: "manageReport", reportId: report.id })
               : undefined

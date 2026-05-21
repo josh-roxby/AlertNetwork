@@ -21,15 +21,15 @@ type NavItem = {
   href: string;
   label: string;
   Icon: typeof IconDashboard;
-  ownerOnly?: boolean;
+  managerOnly?: boolean;
 };
 
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", Icon: IconDashboard },
   { href: "/accounts", label: "Accounts", Icon: IconAccounts },
   { href: "/reports", label: "Reports", Icon: IconReports },
-  // Settings is owner-only.
-  { href: "/settings", label: "Settings", Icon: IconSettings, ownerOnly: true },
+  // Settings is hidden from viewers; managers + owner see it.
+  { href: "/settings", label: "Settings", Icon: IconSettings, managerOnly: true },
 ];
 
 export function Drawer() {
@@ -40,9 +40,9 @@ export function Drawer() {
     accounts,
     projects,
     projectsLoading,
-    isOwner,
+    canManage,
   } = useShell();
-  const navItems = NAV.filter((n) => !n.ownerOnly || isOwner);
+  const navItems = NAV.filter((n) => !n.managerOnly || canManage);
   const hideNav = !projectsLoading && projects.length === 0;
   const pathname = usePathname();
   const project = useActiveProject();

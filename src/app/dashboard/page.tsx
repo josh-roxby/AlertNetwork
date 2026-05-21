@@ -36,7 +36,7 @@ export default function DashboardPage() {
     posts,
     postsByAccount,
     openSheet,
-    isOwner,
+    canManage,
     isSuperAdmin,
   } = useShell();
   const project = useActiveProject();
@@ -120,14 +120,14 @@ export default function DashboardPage() {
   if (accounts.length === 0) {
     return (
       <EmptyState
-        title={isOwner ? "Add your first account" : "No accounts yet"}
+        title={canManage ? "Add your first account" : "No accounts yet"}
         body={
-          isOwner
+          canManage
             ? `No accounts in ${project?.name ?? "this project"} yet. Paste a TikTok profile URL to start monitoring it.`
             : `${project?.name ?? "This project"} doesn't have any accounts yet — the owner hasn't added any.`
         }
-        cta={isOwner ? "Add account" : undefined}
-        onCta={isOwner ? () => openSheet({ kind: "addAccount" }) : undefined}
+        cta={canManage ? "Add account" : undefined}
+        onCta={canManage ? () => openSheet({ kind: "addAccount" }) : undefined}
       />
     );
   }

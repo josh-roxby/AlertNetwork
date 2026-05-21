@@ -25,9 +25,9 @@ export async function POST(
 ) {
   const { id: projectId } = await context.params;
 
-  let body: { email?: string } = {};
+  let body: { email?: string; role?: string } = {};
   try {
-    body = (await request.json()) as { email?: string };
+    body = (await request.json()) as { email?: string; role?: string };
   } catch {
     // empty body handled below
   }
@@ -38,6 +38,8 @@ export async function POST(
       { status: 400 },
     );
   }
+  const role: "viewer" | "manager" =
+    body.role === "manager" ? "manager" : "viewer";
 
   const supabase = await supabaseServer();
   const {
@@ -153,7 +155,7 @@ export async function POST(
     .insert({
       project_id: projectId,
       user_id: inviteeUserId,
-      role: "viewer",
+      role,
       invited_email: email,
       invited_by: user.id,
     })

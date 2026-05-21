@@ -7,7 +7,7 @@ import { IconPlus } from "@/components/icons";
 import { SkeletonProjectList } from "@/components/skeletons";
 
 export default function ReportsPage() {
-  const { activeProjectId, reports, reportsLoading, openSheet, isOwner } =
+  const { activeProjectId, reports, reportsLoading, openSheet, canManage } =
     useShell();
   const project = useActiveProject();
 
@@ -39,11 +39,11 @@ export default function ReportsPage() {
         <p className="mt-2 max-w-[34ch] t-body text-ink-2">
           A report is a scheduled summary of accounts in{" "}
           {project?.name ?? "this project"}.
-          {isOwner
+          {canManage
             ? " Create one to send metrics on a weekly or monthly cadence."
             : " The project owner hasn't created any yet."}
         </p>
-        {isOwner && (
+        {canManage && (
           <button
             type="button"
             onClick={() => openSheet({ kind: "newReport" })}
@@ -66,7 +66,7 @@ export default function ReportsPage() {
             Scheduled summaries for {project?.name ?? "this project"}.
           </p>
         </div>
-        {isOwner && (
+        {canManage && (
           <button
             type="button"
             onClick={() => openSheet({ kind: "newReport" })}

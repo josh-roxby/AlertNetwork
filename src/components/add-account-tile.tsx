@@ -4,11 +4,11 @@ import { useShell } from "@/components/shell-context";
 import { IconPlus } from "@/components/icons";
 
 export function AddAccountTile() {
-  const { openSheet, isOwner } = useShell();
+  const { openSheet, canManage } = useShell();
 
   // Viewers don't see the add-account affordance — the rest of the
-  // list still renders, they just can't create.
-  if (!isOwner) return null;
+  // list still renders, they just can't create. Managers do.
+  if (!canManage) return null;
 
   return (
     <button

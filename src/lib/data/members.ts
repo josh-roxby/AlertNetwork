@@ -11,7 +11,7 @@ export type ProjectMemberRow = {
   id: string;
   project_id: string;
   user_id: string;
-  role: "viewer";
+  role: "viewer" | "manager";
   invited_email: string;
   invited_at: string;
 };
@@ -23,24 +23,22 @@ export type ProjectMemberView = ProjectMemberRow & {
   display_email: string;
 };
 
-export type ProjectRoleForUser = "owner" | "viewer" | null;
+export type ProjectRoleForUser = "owner" | "manager" | "viewer" | null;
 
-// Resolve whether the calling user appears in `super_admins`. Hits a
-// single RLS-gated row (you can only see your own membership), so it
-// returns false for anyone not on the list. Used by ShellContext to
-// gate the "New project" UI.
+// Resolve whether the calling user appears in `super_admins`. Uses
+// the `is_super_admin()` RPC (SECURITY DEFINER) rather than a direct
+// table read — the RPC bypasses RLS and gives us a clean true/false
+// without any policy-evaluation surface area. If the call fails for
+// any reason we conservatively return false rather than throwing —
+// auth callbacks must never surface a 500 to the user here.
 export async function isSuperAdmin(): Promise<boolean> {
-  const supabase = supabaseBrowser();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return false;
-  const { data } = await supabase
-    .from("super_admins")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  return !!data;
+  try {
+    const supabase = supabaseBrowser();
+    const { data } = await supabase.rpc("is_super_admin");
+    return data === true;
+  } catch {
+    return false;
+  }
 }
 
 // Resolve the calling user's role on a project. Hits two indices —
@@ -71,7 +69,10 @@ export async function roleForProject(
   ]);
 
   if (ownerRes.data) return "owner";
-  if (memberRes.data) return (memberRes.data.role as "viewer") ?? "viewer";
+  if (memberRes.data) {
+    const r = memberRes.data.role as "viewer" | "manager" | undefined;
+    return r === "manager" ? "manager" : "viewer";
+  }
   return null;
 }
 

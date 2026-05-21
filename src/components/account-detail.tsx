@@ -43,7 +43,7 @@ const RANGE_DAYS: Record<ChartRange, number> = { "7d": 7, "30d": 30, "90d": 90 }
 type DetailTab = "charts" | "posts";
 
 export function AccountDetail({ accountId }: { accountId: string }) {
-  const { refreshAccounts, refreshPosts, openSheet, isOwner } = useShell();
+  const { refreshAccounts, refreshPosts, openSheet, canManage } = useShell();
   const project = useActiveProject();
   const [account, setAccount] = useState<AccountView | null>(null);
   const [posts, setPosts] = useState<PostRow[]>([]);
@@ -165,7 +165,7 @@ export function AccountDetail({ accountId }: { accountId: string }) {
             {account.handle}
           </div>
         </div>
-        {isOwner && (
+        {canManage && (
           <button
             type="button"
             onClick={() =>
@@ -247,7 +247,7 @@ export function AccountDetail({ accountId }: { accountId: string }) {
           View on platform
           <span aria-hidden>↗</span>
         </a>
-        {isOwner && (
+        {canManage && (
           <button
             type="button"
             onClick={rescan}

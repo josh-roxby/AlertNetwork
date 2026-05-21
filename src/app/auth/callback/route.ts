@@ -39,34 +39,68 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // A super-admin always has access — they may have zero projects on
-  // first sign-in and we want them to land in the app so they can
-  // create one. Other users need either an owned project or a
-  // project_members row.
-  const [ownedRes, memberRes, superAdminRes] = await Promise.all([
-    supabase.from("projects").select("id").eq("owner_id", user.id).limit(1),
-    supabase
-      .from("project_members")
-      .select("project_id")
-      .eq("user_id", user.id)
-      .limit(1),
-    supabase
-      .from("super_admins")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .maybeSingle(),
+  // Invite-only gate. The user gets through if ANY of the following
+  // returns truthy:
+  //   - is_super_admin() RPC (SECURITY DEFINER — bypasses RLS so
+  //     transient policy hiccups can't lock the super admin out)
+  //   - they own at least one project
+  //   - they appear in project_members
+  //
+  // Errors on any individual query are treated as "unknown" rather
+  // than "no access" — a fail-open posture is the right default for
+  // the bootstrap path so a stray RLS misconfig never bricks the
+  // super admin out of the app. Any user with no real membership
+  // will still bounce off the per-page RLS guards as soon as they
+  // try to read anything.
+  // Supabase's query builders are PromiseLike but don't have .catch
+  // directly; wrap each in a regular Promise so transient failures
+  // resolve to `{ data: null }` instead of throwing through Promise.all.
+  const [superRes, ownedRes, memberRes] = await Promise.all([
+    Promise.resolve(supabase.rpc("is_super_admin")).then(
+      (r) => r as { data: unknown },
+      () => ({ data: null }),
+    ),
+    Promise.resolve(
+      supabase.from("projects").select("id").eq("owner_id", user.id).limit(1),
+    ).then(
+      (r) => r as { data: { id: string }[] | null },
+      () => ({ data: null }),
+    ),
+    Promise.resolve(
+      supabase
+        .from("project_members")
+        .select("project_id")
+        .eq("user_id", user.id)
+        .limit(1),
+    ).then(
+      (r) => r as { data: { project_id: string }[] | null },
+      () => ({ data: null }),
+    ),
   ]);
 
-  const hasAccess =
-    !!superAdminRes.data ||
-    (ownedRes.data?.length ?? 0) > 0 ||
-    (memberRes.data?.length ?? 0) > 0;
+  const isSuper = superRes.data === true;
+  const ownsAny = (ownedRes.data?.length ?? 0) > 0;
+  const isMember = (memberRes.data?.length ?? 0) > 0;
+  const hasAccess = isSuper || ownsAny || isMember;
 
   if (!hasAccess) {
-    await supabase.auth.signOut();
-    const fallback = new URL("/login", request.url);
-    fallback.searchParams.set("error", "invite-only");
-    return NextResponse.redirect(fallback);
+    // Only bounce when we positively know they have no membership —
+    // an erroring query won't have set ownsAny / isMember to true
+    // but it also shouldn't trigger the invite-only redirect on its
+    // own. Log it for diagnosis.
+    if (
+      superRes.data !== null &&
+      ownedRes.data !== null &&
+      memberRes.data !== null
+    ) {
+      await supabase.auth.signOut();
+      const fallback = new URL("/login", request.url);
+      fallback.searchParams.set("error", "invite-only");
+      return NextResponse.redirect(fallback);
+    }
+    console.error(
+      `[auth/callback] access decision unclear for ${user.email}; letting through`,
+    );
   }
 
   return NextResponse.redirect(new URL(next, request.url));
